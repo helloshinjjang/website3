@@ -2755,7 +2755,7 @@ function plcStale(res, apps){
 /* ---------- 저장 · 불러오기 · 초기화 (실제 모드: 서버 함수 / 데모: 메모리) ---------- */
 function plcErr(e){
   var m = (e && (e.message || e.details)) || String(e || "");
-  if (/CONFLICT/.test(m)) return "다른 사용자가 그사이 배정 결과를 저장했습니다. [최신 내용 불러오기]로 새로 불러온 뒤 다시 실행하세요.";
+  if (/CONFLICT/.test(m)) return "다른 사용자가 그사이 배정 결과를 저장했습니다. 브라우저를 새로고침(F5)해서 새로 불러온 뒤 다시 실행하세요.";
   if (/OVER_CAP:?(.*)/.test(m)) return "정원 초과: " + m.split("OVER_CAP:")[1];
   if (/DUPLICATE_STUDENT/.test(m)) return "한 학생이 중복 배정되어 저장하지 않았습니다.";
   if (/NOT_WISH:?(.*)/.test(m)) return "학생이 희망하지 않은 기관에 배정된 항목이 있어 저장하지 않았습니다: " + (m.split("NOT_WISH:")[1]||"");
@@ -3616,11 +3616,9 @@ RENDER.STUDENT.prep = function(){
     (sess.length ? sess.map(function(ps){
       return '<div class="ps-stu"><div class="ps-stu-h"><b>'+esc(ps.title||"")+'</b> '+(ps.attendees[s.id]?'<span class="badge b-teal">참석</span>':'')+'</div>' +
         '<dl style="font-size:13px;line-height:1.9;margin:0"><div>일시: <b>'+esc(prepWhen(ps))+'</b> · 장소: <b>'+esc(ps.place||"-")+'</b>'+(ps.hours?' ('+esc(ps.hours)+'시간)':'')+'</div><div>강사: '+esc(ps.lecturer||"-")+'</div>' +
-        (ps.content?'<div>내용: '+esc(ps.content)+'</div>':'') + (ps.materials?'<div>배포 자료: '+esc(ps.materials)+'</div>':'') + '</dl>' +
-        '<div class="ps-mat">자료 내려받기: <span id="psMat_'+esc(ps.id)+'"><span class="tiny">불러오는 중…</span></span></div></div>';
+        (ps.content?'<div>내용: '+esc(ps.content)+'</div>':'') + (ps.materials?'<div>배포 자료: '+esc(ps.materials)+'</div>':'') + '</dl>' + '</div>';
     }).join("") : '<p class="tiny">아직 안내된 사전교육 일정이 없습니다.</p>') +
     '<p class="tiny" style="margin-top:6px">대면 사전교육 참석은 지도교수가 확인합니다. (인증평가 6.2.1 다) 현장실습 준비교육 운영실적)</p>')));
-  sess.forEach(function(ps){ prepStudentMaterials(ps); });
   host.appendChild(h(card("사전교육 이수확인서 제출","",
     (ex.eduCert ? '<div style="font-size:13px">제출 파일: <b>'+esc(ex.eduCert)+'</b> <button type="button" class="btn btn-sm btn-out" id="ecDel">삭제</button></div>'
       : '<span class="btn btn-sm btn-out" style="position:relative;overflow:hidden">이수확인서 업로드<input type="file" id="ecFile" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span>') +
@@ -4265,7 +4263,7 @@ var PF = {
       doc:"application/msword", docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       xls:"application/vnd.ms-excel", xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       hwp:"application/x-hwp", hwpx:"application/hwp+zip", jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png" },
-    accept:".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.hwp,.hwpx,.jpg,.jpeg,.png", rule:"PDF·PPT·워드·엑셀·한글·이미지, 1개당 30MB 이하" },
+    accept:"", rule:"PDF·PPT·워드·엑셀·한글·이미지, 1개당 30MB 이하" },
   cache:{}, pending:{ PHOTO:[], MATERIAL:[] }, busy:{}, msg:{}
 };
 function pfFmt(n){ return n >= 1048576 ? (n/1048576).toFixed(1)+"MB" : Math.max(1, Math.round(n/1024))+"KB"; }
@@ -4329,6 +4327,10 @@ function pfShrinkPhoto(f){
     im.src = url;
   });
 }
+/* 저장소로 보낼 파일에 올바른 형식(MIME)을 붙임.
+ *  supabase-js 는 파일을 보낼 때 contentType 옵션을 쓰지 않고 브라우저가 붙인 파일 형식을 그대로 보냄.
+ *  한글(.hwp/.hwpx) 등은 브라우저가 형식을 모르거나(빈 값) 다르게 붙여 저장소가 "허용하지 않는 형식"으로 거부 → 확장자 기준 형식으로 다시 포장 */
+function sbTyped(f, type){ return (!type || f.type === type) ? f : f.slice(0, f.size, type); }
 async function pfUpload(kind, eduId, item){
   var K = PF[kind], f = item.file;
   if (kind === "PHOTO"){ f = await pfShrinkPhoto(f); if (f.size > K.max) throw new Error("사진이 너무 큽니다 (" + pfFmt(f.size) + ")."); }
@@ -4342,7 +4344,7 @@ async function pfUpload(kind, eduId, item){
     row.url = kind === "PHOTO" ? item.preview : URL.createObjectURL(f);
     DB.prepFiles = DB.prepFiles || []; DB.prepFiles.push(row); return;
   }
-  var up = await SB.storage.from(K.bucket).upload(path, f, { contentType:type, upsert:false });
+  var up = await SB.storage.from(K.bucket).upload(path, sbTyped(f, type), { contentType:type, upsert:false });
   if (up.error) throw up.error;
   row.uploaded_by = RS.me.id; row.uploaded_by_name = RS.me.name;
   var ins = await SB.from(K.table).insert(row);
@@ -4361,10 +4363,12 @@ function pfErr(e){
   var friendly = pfErrFriendly(e), m = (e && (e.message || e.error || e.details)) || String(e || "");
   return friendly === m ? m : friendly + " [서버 메시지: " + m + (e && e.code ? " · " + e.code : "") + "]";
 }
+function sbProjectRef(){ var m = String(realBaseUrl(APP_CONFIG.supabaseUrl || "")).match(/^https?:\/\/([^.\/]+)\.supabase\.co/i); return m ? m[1] : String(APP_CONFIG.supabaseUrl || ""); }
 function pfErrFriendly(e){
   var m = (e && (e.message || e.error || e.details)) || String(e || "");
-  if (/bucket not found/i.test(m)) return "파일 저장소가 아직 만들어지지 않았습니다. Supabase SQL Editor에서 마이그레이션 SQL(002 · 003 · 005)을 실행했는지 확인해 주세요.";
-  if (/relation .* does not exist|could not find the table|schema cache/i.test(m)) return "서버에 필요한 표가 없습니다. Supabase SQL Editor에서 마이그레이션 SQL(002 · 003 · 005)을 실행했는지 확인해 주세요.";
+  var where = " (이 사이트가 연결된 Supabase 프로젝트: " + sbProjectRef() + " — SQL을 실행한 프로젝트 주소 supabase.com/dashboard/project/○○○ 의 ○○○ 와 같은지 확인)";
+  if (/bucket not found/i.test(m)) return "파일 저장소가 이 프로젝트에 없습니다. 이 프로젝트의 SQL Editor에서 supabase_migration_통합_002-005.sql 을 실행해 주세요." + where;
+  if (/relation .* does not exist|could not find the table|could not find the function|schema cache/i.test(m)) return "서버에 필요한 표가 이 프로젝트에 없습니다. 이 프로젝트의 SQL Editor에서 supabase_migration_통합_002-005.sql 을 실행해 주세요." + where;
   if (/invalid key/i.test(m)) return "파일 경로 오류(Invalid key) — 새 index.html로 바꿔 올렸는지 확인해 주세요.";
   if (/mime|type/i.test(m) && /not supported|invalid|not allowed/i.test(m)) return "서버가 허용하지 않는 파일 형식입니다.";
   if (/size|too large|exceeded/i.test(m)) return "서버 허용 크기를 넘었습니다.";
@@ -4376,8 +4380,8 @@ var PF_IC = { pdf:"PDF", ppt:"PPT", pptx:"PPT", doc:"DOC", docx:"DOC", xls:"XLS"
 function pfCard(host, kind, ps, canEdit, num){
   var K = PF[kind], P = "pf" + kind, eduId = ps.id;
   if (PF.pendingFor !== eduId){ PF.pending = { PHOTO:[], MATERIAL:[] }; PF.msg = {}; PF.pendingFor = eduId; }
-  var card = h('<div class="card pph"><div class="card-hd"><h3>'+num+' 사전교육 '+K.name+' — '+esc(ps.title||"")+'</h3><span class="act" id="'+P+'Cnt"></span></div><div class="card-bd" style="padding:16px">' +
-    '<p class="tiny" style="margin-bottom:10px">'+(kind === "PHOTO" ? '교육하는 모습을 찍은 사진을 이 회차에 기록합니다.' : '이 회차에서 쓴 PPT·지침서·실습일지 양식 등을 올립니다. 학생도 [사전 교육] 화면에서 내려받을 수 있습니다.')+' '+K.rule+', 한 번에 '+K.maxN+'개까지.</p>' +
+  var card = h('<div class="card pph"><div class="card-hd"><h3>'+num+' 사전교육 '+(kind === "PHOTO" ? "사진 및 자료" : K.name)+' — '+esc(ps.title||"")+'</h3><span class="act" id="'+P+'Cnt"></span></div><div class="card-bd" style="padding:16px">' +
+    (kind === "PHOTO" ? '' : '<p class="tiny" style="margin-bottom:10px">이 회차에서 쓴 PPT·지침서·실습일지 양식 등을 올립니다. '+K.rule+', 한 번에 '+K.maxN+'개까지.</p>') +
     (canEdit ? '<label class="pph-drop" id="'+P+'Drop"><input type="file" id="'+P+'In" accept="'+K.accept+'" multiple hidden>' +
       '<span class="btn btn-sm btn-out" aria-hidden="true">파일 선택</span><span class="tiny">또는 파일을 여기로 끌어다 놓으세요</span></label>' +
       '<div id="'+P+'Pend"></div>' +
@@ -4485,7 +4489,8 @@ function toDataURL(url){
 }
 /* 보고서 내용 — forPdf 이면 사진을 파일 안에 넣고 자료 링크를 7일짜리로 만듦 */
 async function prepReportHTML(ps, forPdf){
-  var photos = await pfList("PHOTO", ps.id, true), mats = await pfList("MATERIAL", ps.id, true);
+  var photos = await pfList("PHOTO", ps.id, true), mats = [];
+  try { mats = await pfList("MATERIAL", ps.id, true); } catch (e){ mats = []; }   // 자료 칸은 쓰지 않음 — 예전에 올린 자료만 있으면 보고서에 표시
   if (forPdf){
     for (var i = 0; i < photos.length; i++) photos[i] = Object.assign({}, photos[i], { data: await toDataURL(photos[i].url) });
     if (REAL && mats.length){
@@ -4510,7 +4515,7 @@ async function prepReportHTML(ps, forPdf){
       (mats.length ? '<table class="rp-t rp-l"><thead><tr><th>파일</th><th>설명</th><th>크기</th><th>올린 사람</th></tr></thead><tbody>' + mats.map(function(x){
         return '<tr><td>'+(x.url && forPdf ? '<a href="'+esc(x.url)+'">'+esc(x.file_name)+'</a>' : esc(x.file_name))+'</td><td>'+esc(x.description||"")+'</td><td>'+pfFmt(x.file_size)+'</td><td>'+esc(x.uploaded_by_name||"")+'</td></tr>'; }).join("") + '</tbody></table>' +
         (forPdf && REAL ? '<p class="rp-n">파일 이름을 누르면 자료를 내려받을 수 있습니다 (링크는 보고서를 만든 뒤 7일 동안 유효).</p>' : '')
-      : '<p class="rp-n">올린 자료 파일이 없습니다.</p>') +
+      : (ps.materials ? '' : '<p class="rp-n">-</p>')) +
     '<h2>4. 참석 학생 ('+att.length+'명)</h2>' + (att.length ? '<table class="rp-t rp-l"><thead><tr><th>번호</th><th>학번</th><th>이름</th></tr></thead><tbody>' +
       att.map(function(s, i){ return '<tr><td>'+(i+1)+'</td><td>'+esc(s.no)+'</td><td>'+esc(s.name)+'</td></tr>'; }).join("") + '</tbody></table>' : '<p class="rp-n">참석 확인된 학생이 없습니다.</p>') +
     '<h2>5. 교육 사진 ('+photos.length+'장)</h2>' + (photos.length ? '<div class="rp-ph">' + photos.map(function(x, i){
@@ -4570,7 +4575,7 @@ RENDER.FACULTY.prepops = function(){
       '<label class="lb">장소<input class="cell" id="psPlace" value="'+esc(ps.place||"")+'" style="width:100%"'+dis+'></label>' +
       '<label class="lb">강사<input class="cell" id="psLect" value="'+esc(ps.lecturer||"")+'" style="width:100%"'+dis+'></label></div>' +
       '<label class="lb" style="margin-top:10px">교육 내용<textarea class="in" id="psContent" rows="4"'+dis+'>'+esc(ps.content||"")+'</textarea></label>' +
-      '<label class="lb" style="margin-top:10px">제공 자료 설명 (파일은 아래 [④ 자료]에 올림)<input class="cell" id="psMat" value="'+esc(ps.materials||"")+'" style="width:100%"'+dis+'></label>' +
+      '<label class="lb" style="margin-top:10px">제공 자료 설명<input class="cell" id="psMat" value="'+esc(ps.materials||"")+'" style="width:100%"'+dis+'></label>' +
       '<div class="lb" style="margin-top:14px;display:flex;align-items:center;gap:10px">참석 학생 <span class="tiny" id="psAttN"></span>'+(canEdit?'<label class="switch tiny" style="margin-left:auto"><input type="checkbox" id="psAll"> 전체 선택</label>':'')+'</div>' +
       '<div class="ps-att">'+(list.length ? list.map(function(s){ return '<label class="ps-st"><input type="checkbox" data-att="'+esc(s.id)+'"'+(ps.attendees[s.id]?' checked':'')+dis+'> <span class="mono">'+esc(s.no)+'</span> '+esc(s.name)+'</label>'; }).join("") : '<p class="tiny">학생이 없습니다.</p>')+'</div>' +
       '<p class="msg" id="psMsg" hidden></p>' +
@@ -4591,26 +4596,37 @@ RENDER.FACULTY.prepops = function(){
       });
       $("psRep").addEventListener("click", function(){ prepReportModal(ps); });
       $("psDel").addEventListener("click", async function(){
-        try {
-          var n = (await pfList("PHOTO", ps.id, true)).length + (await pfList("MATERIAL", ps.id, true)).length;
-          if (n){ toast("이 회차에 사진·자료가 "+n+"개 있습니다. 먼저 삭제한 뒤 회차를 지우세요."); return; }
-        } catch (e){ toast("확인하지 못했습니다: " + pfErr(e)); return; }
-        if (!window.confirm((ps.title||"이 회차") + " 기록을 삭제할까요? 참석 확인 기록도 함께 지워집니다.")) return;
-        DB.prepSessions = prepSessions().filter(function(x){ return x.id !== ps.id; }); UI.psSel = null; renderMain(); toast("회차를 삭제했습니다.");
+        var btn = this, m = $("psMsg"), photos = [], mats = [], listErr = "";
+        function say(t){ if (m){ m.textContent = t; m.hidden = !t; } }
+        btn.disabled = true; say("");
+        try { photos = await pfList("PHOTO", ps.id, true); } catch (e){ listErr = pfErr(e); }
+        try { mats = await pfList("MATERIAL", ps.id, true); } catch (e){ listErr = listErr || pfErr(e); }
+        var q = (ps.title||"이 회차") + " 기록을 삭제할까요?\n참석 확인 기록도 함께 지워집니다.";
+        if (photos.length || mats.length) q += "\n\n이 회차에 올린 사진 " + photos.length + "장 · 자료 " + mats.length + "개도 함께 삭제됩니다.";
+        if (listErr) q += "\n\n(첨부 파일 목록을 확인하지 못했습니다: " + listErr + ")";
+        q += "\n삭제하면 되돌릴 수 없습니다.";
+        if (!window.confirm(q)){ btn.disabled = false; return; }
+        var fail = 0, i;
+        for (i = 0; i < photos.length; i++){ try { await pfDelete("PHOTO", ps.id, photos[i]); } catch (e){ fail++; console.warn(e); } }
+        for (i = 0; i < mats.length; i++){ try { await pfDelete("MATERIAL", ps.id, mats[i]); } catch (e){ fail++; console.warn(e); } }
+        var keep = DB.prepSessions;
+        DB.prepSessions = prepSessions().filter(function(x){ return x.id !== ps.id; });
+        if (REAL){ await realSave(); if (RS.err){ DB.prepSessions = keep; btn.disabled = false; say("회차를 삭제하지 못했습니다: " + RS.err); return; } }
+        UI.psSel = null; renderMain();
+        toast("회차를 삭제했습니다." + (fail ? " (첨부 파일 " + fail + "개는 지우지 못했습니다)" : ""));
       });
     }
-    // ③ 사진 · ④ 자료
+    // ③ 사진 및 자료 (자료 칸은 사용하지 않음)
     pfCard(host, "PHOTO", ps, canEdit, "③");
-    pfCard(host, "MATERIAL", ps, canEdit, "④");
   }
-  // ⑤ 학생별 이수 · 참석 현황
+  // ④ 학생별 이수 · 참석 현황
   var srows = list.map(function(s){
     var ex = stuExtra(s.id), n = eduDone(s.id), tot = DB.preEducation.length, ok = prepOK(s.id), at = prepAttended(s.id);
     return '<tr><td>'+esc(s.name)+'<div class="tiny">'+esc(s.no)+'</div></td><td class="num">'+n+' / '+tot+'</td><td class="tiny">'+(ex.eduCert?esc(ex.eduCert):'<span class="badge b-slate">미제출</span>')+'</td>' +
       '<td>'+(at.length ? at.map(function(x){ return '<span class="badge b-teal">'+esc(x.title||x.date)+'</span>'; }).join(" ") : '<span class="badge b-amber">미참석</span>')+'</td>' +
       '<td>'+(ok?'<span class="badge b-teal">열람 가능</span>':'<span class="badge b-amber">열람 제한</span>')+'</td></tr>';
   }).join("");
-  host.appendChild(h(card("⑤ 학생별 사전교육 이수 · 참석 현황", "참석 "+list.filter(function(s){ return prepAttended(s.id).length; }).length+" / "+list.length+"명",
+  host.appendChild(h(card("④ 학생별 사전교육 이수 · 참석 현황", "참석 "+list.filter(function(s){ return prepAttended(s.id).length; }).length+" / "+list.length+"명",
     tbl(["학생","온라인 이수","이수확인서","오프라인 참석 회차","지침서·실습일지"], srows) +
     '<div style="margin-top:12px"><label class="switch"><input type="checkbox" id="psGate"'+(DB.prepGate?" checked":"")+(canEdit?'':' disabled')+'> 사전교육(온라인 이수 + 오프라인 1회 이상 참석) 확인 전에는 현장실습 지침서·실습일지 열람을 제한</label></div>')));
   $("psGate").addEventListener("change", function(){ DB.prepGate = this.checked; renderMain(); toast(this.checked?"열람 제한을 켰습니다.":"열람 제한을 껐습니다."); });
@@ -5867,10 +5883,10 @@ async function afUpload(f){
     DB.adminFiles.push(Object.assign(row, { id:pfUuid(), no:DB.adminFilesSeq, uploaded_by:SESSION.id, uploaded_by_name:SESSION.name, uploaded_at:new Date().toISOString(), url:URL.createObjectURL(f) }));
     return;
   }
-  var bucket = "admin-files", up = await SB.storage.from(bucket).upload(row.storage_path, f, { contentType:type, upsert:false }), firstErr = null;
+  var bucket = "admin-files", up = await SB.storage.from(bucket).upload(row.storage_path, sbTyped(f, type), { contentType:type, upsert:false }), firstErr = null;
   if (up.error){   // 예비 저장소
     firstErr = up.error; bucket = "uploads"; row.storage_path = RS.me.id + "/doc.admin/" + name;
-    up = await SB.storage.from(bucket).upload(row.storage_path, f, { contentType:type, upsert:false });
+    up = await SB.storage.from(bucket).upload(row.storage_path, sbTyped(f, type), { contentType:type, upsert:false });
     if (up.error){ var e1 = new Error(pfErr(firstErr) + " / 예비 저장소도 실패: " + ((up.error && up.error.message) || up.error)); throw e1; }
   }
   row.uploaded_by = RS.me.id; row.uploaded_by_name = RS.me.name;
@@ -6194,10 +6210,10 @@ async function adminStore(f){
   var name = stamp + "_" + pfUuid() + "." + ext, type = PF.MATERIAL.exts[pfExt(f.name)];
   var file = { file_name:f.name.slice(0, 200), file_size:f.size, file_type:type };
   if (!REAL) return Object.assign(file, { bucket:"demo", storage_path:"demo/" + name, url:URL.createObjectURL(f) });
-  var r = await SB.storage.from("admin-files").upload("admin/" + name, f, { contentType:type, upsert:false });
+  var r = await SB.storage.from("admin-files").upload("admin/" + name, sbTyped(f, type), { contentType:type, upsert:false });
   if (!r.error) return Object.assign(file, { bucket:"admin-files", storage_path:"admin/" + name });
   var first = r.error, p2 = RS.me.id + "/doc.admin/" + name;
-  r = await SB.storage.from("uploads").upload(p2, f, { contentType:type, upsert:false });
+  r = await SB.storage.from("uploads").upload(p2, sbTyped(f, type), { contentType:type, upsert:false });
   if (r.error) throw new Error(pfErr(first) + " / 예비 저장소도 실패: " + ((r.error && r.error.message) || r.error));
   return Object.assign(file, { bucket:"uploads", storage_path:p2 });
 }
@@ -7084,8 +7100,7 @@ async function realEnter(user){
   var u = USERS.filter(function(x){ return x.id === p.id; })[0] || realProfileToUser(p);
   enterApp(u);
   var foot = document.querySelector(".sb-foot");
-  if (foot && !$("realSave")) foot.insertAdjacentHTML("afterbegin", '<div class="real-save" id="realSave"></div><button type="button" class="real-reload" id="realReload">최신 내용 불러오기</button><button type="button" class="real-reload" id="realPwBtn">비밀번호 변경</button>');
-  var rl = $("realReload"); if (rl) rl.addEventListener("click", function(){ realSave().then(function(){ location.reload(); }); });
+  if (foot && !$("realSave")) foot.insertAdjacentHTML("afterbegin", '<div class="real-save" id="realSave"></div><button type="button" class="real-reload" id="realPwBtn">비밀번호 변경</button>');
   var pb = $("realPwBtn"); if (pb) pb.addEventListener("click", realPwDialog);
 }
 /* 임시 비밀번호로 처음 로그인했을 때: 새 비밀번호를 정해야 들어갈 수 있음 */

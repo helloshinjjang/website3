@@ -590,6 +590,17 @@ window.APP_CONFIG = {
 
   td.sd-inst { background: #F7F9FA; vertical-align: top; min-width: 120px; }
   .sd-doc { color: #6B7680; } .mu-t { color: #9AA3AB; }
+  .ap-lbl { display: block; font-size: 13px; font-weight: 600; color: #2B363D; margin: 16px 0 6px; } .ap-lbl:first-child { margin-top: 0; }
+  .ap-in { display: block; width: 100%; box-sizing: border-box; border: 1px solid #D5DBDF; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit; background: #fff; color: inherit; }
+  textarea.ap-in { resize: vertical; line-height: 1.7; min-height: 180px; }
+  .ap-in:focus { outline: none; border-color: #2E6B74; box-shadow: 0 0 0 3px rgba(46,107,116,.14); }
+  .ap-meta { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 0 0 14px; padding-bottom: 12px; border-bottom: 1px solid #E3E7EA; font-size: 13px; }
+  .ap-meta div { display: flex; gap: 8px; } .ap-meta dt { color: #6B7780; } .ap-meta dd { margin: 0; font-weight: 600; }
+  .ap-body { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.75; font-size: 14px; min-height: 60px; }
+  .ap-h { margin: 20px 0 8px; font-size: 13px; color: #44515A; }
+  .ap-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .ap-files li { display: flex; align-items: center; gap: 10px; justify-content: space-between; border: 1px solid #E3E7EA; border-radius: 8px; padding: 8px 12px; font-size: 13px; flex-wrap: wrap; }
+  .ap-row { cursor: pointer; } .ap-row:hover td { background: #F3F7F8; } .ap-prev { margin-top: 2px; color: #6B7780; }
   .af-pend { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
   .af-pi { display: flex; align-items: center; gap: 10px; border: 1px solid #E3E7EA; border-radius: 8px; padding: 8px 12px; font-size: 13px; position: relative; }
   .af-pi.bad { border-color: #E0806F; background: #FCEDEA; } .af-pi > span:first-child { flex: 1; overflow-wrap: anywhere; }
@@ -1396,7 +1407,7 @@ var NAV = {
     { id:"placement", label:"배정 관리", ic:"■" },
     { id:"grp_staff_docs", label:"서류 관리", ic:"■", children:[
       { id:"docStudents", label:"학생 제출 서류" },
-      { id:"docInst", label:"기관·공문 서류" },
+      { id:"docInst", label:"기타 서류" },
       { id:"docForms", label:"서식 관리표 (전체)" }
     ]},
     { id:"docmaster", label:"제출 서류 설정", ic:"■" },
@@ -1787,7 +1798,7 @@ var PERM_CATALOG = [
    { key:"staff.documents", label:"서류 관리", children:[
      { key:"staff.documents.students", label:"학생 제출 서류", desc:"기관별 학생 서류 확인 · 기관별 서류 PDF 한 파일로 저장 (점수 정보 제외)" },
      { key:"staff.documents.verified", label:"확인 완료 학생" },
-     { key:"staff.documents.receive", label:"기관·공문 서류", desc:"행정 파일 업로드 · 다운로드 · 삭제" },
+     { key:"staff.documents.receive", label:"기타 서류", desc:"제목 · 내용 · 첨부 파일 글 올리기 · 보기 · 삭제" },
      { key:"staff.documents.forms", label:"서식 관리표(전체)" }]},
    { key:"staff.docmaster", label:"제출 서류 설정 (서류 마스터 코드)", desc:"공통 서류 · 실습기관별 제출 서류 지정" },
    { key:"staff.survey", label:"만족도 조사" }]},
@@ -5291,7 +5302,7 @@ RENDER.STAFF.home = function(){
     var drows = docMiss.concat(docWait).map(function(d){
       return '<tr><td class="mut">'+esc(d.scope)+'</td><td>'+esc(d.target)+'</td><td>'+esc(d.label)+'</td><td class="num">'+esc(d.dueDate)+'</td><td>'+badge(DOCST,d.status)+'</td></tr>';
     }).join("");
-    var oc = h(card("처리 필요 서류 (기관·공문)", (docMiss.length+docWait.length)+"건",
+    var oc = h(card("처리 필요 서류 (기타 서류)", (docMiss.length+docWait.length)+"건",
       tbl(["구분","대상","서류","마감","상태"], drows) + '<div class="btnrow"><button type="button" class="btn btn-sm btn-out" id="goDocBtn">서류 관리로 이동</button></div>'));
     host.appendChild(oc);
     $("goDocBtn").addEventListener("click", function(){ navTo("docInst"); });
@@ -5429,7 +5440,7 @@ RENDER.STAFF.institutions = function(){
 };
 
 /* ============================================================ *
- *  학교 행정 · 서류 관리 (대분류) → 학생 제출 서류 / 기관·공문 서류 / 서식 관리표 (중분류)
+ *  학교 행정 · 서류 관리 (대분류) → 학생 제출 서류 / 기타 서류 / 서식 관리표 (중분류)
  * ============================================================ */
 RENDER.STAFF.documents = function(){ navTo("docStudents"); };   // 예전 주소 호환
 /* 지도교수: 행정의 기관 리스트 · 배정 관리를 보기 전용으로 */
@@ -5901,79 +5912,163 @@ async function afDelete(x){
   if (rm.error) console.warn("파일 삭제 실패(목록에서는 삭제됨):", rm.error.message);
   AF.cache = null;
 }
+/* ---------- 기타 서류: 메일처럼 제목 · 내용 · 첨부 파일로 글을 올림 ----------
+ *  글 목록은 교직원 공용 문서 shared_docs 'adminPosts' = { posts:{ <글 id>: 글 } } (글마다 따로 합쳐 저장 → 동시에 써도 서로 덮어쓰지 않음)
+ *  첨부 파일은 adminStore() → 저장소 admin-files (안 되면 uploads/<내 id>/doc.admin/)
+ *  작성자 · 작성 시점은 등록하는 순간 로그인 계정과 현재 시각으로 자동 기록 (화면에서 고칠 수 없음) */
+var AP = { pending:[], busy:false, view:null, compose:false, msg:null };
+function apDoc(){ if (!DB.adminPosts || typeof DB.adminPosts !== "object" || !DB.adminPosts.posts) DB.adminPosts = { posts:{} }; return DB.adminPosts; }
+function apList(){
+  var all = Object.keys(apDoc().posts).map(function(k){ return apDoc().posts[k]; }).filter(Boolean)
+    .sort(function(a, b){ return String(a.createdAt).localeCompare(String(b.createdAt)); });
+  all.forEach(function(p, i){ p._no = i + 1; });
+  return all.reverse();
+}
+function apWhen(v){ if (!v) return ""; var d = new Date(v); return ymd(d) + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
+function apCanEdit(){ return ["STAFF","ADMIN"].indexOf((SESSION||{}).role) >= 0; }
+async function apRemoveFile(f){
+  if (!REAL || !f || !f.storage_path || f.bucket === "demo") return;
+  var rm = await SB.storage.from(f.bucket || "admin-files").remove([f.storage_path]);
+  if (rm.error) console.warn("첨부 파일 삭제 실패:", rm.error.message);
+}
 RENDER.STAFF.docInst = function(){
-  pageShell("기관·공문 서류", "기관 안내 공문 · 협조 요청서 등 행정 파일을 올리고 관리합니다. 올린 파일은 차례대로 쌓이며 새로고침해도 유지됩니다.", "");
-  var host = pbody();
-  var canEdit = ["STAFF","ADMIN"].indexOf(SESSION.role) >= 0 || (SESSION.role === "FACULTY" && !!navGranted()["staff.documents.receive"]);   // 권한을 받은 지도교수도 올리기 · 지우기
-  host.appendChild(h(card("행정 파일", '<span id="afCnt"></span>',
-    (canEdit ? '<label class="pph-drop" id="afDrop"><input type="file" id="afIn" accept="'+PF.MATERIAL.accept+'" multiple hidden><span class="btn btn-sm btn-out" aria-hidden="true">파일 선택</span><span class="tiny">또는 파일을 여기로 끌어다 놓으세요 · '+PF.MATERIAL.rule+'</span></label>' +
-      '<div id="afPend" class="af-pend"></div><div class="pph-act"><div class="pph-prog" id="afProg" hidden><div class="trk"><i></i></div><span></span></div><button type="button" class="btn btn-sm btn-grad" id="afUp" disabled>파일 업로드</button></div>' : '') +
-    '<div id="afMsg"></div><div id="afList" style="margin-top:12px"><p class="tiny">불러오는 중…</p></div>')));
-  function msg(list){ AF.msg = list; var m = $("afMsg"); if (m) m.innerHTML = (list||[]).map(function(x){ return '<p class="msg'+(x.ok?' ok':'')+'" style="margin:8px 0 0">'+esc(x.t)+'</p>'; }).join(""); }
-  if (AF.msg) msg(AF.msg);
-  function drawPending(){
-    var el = $("afPend"); if (!el) return;
-    el.innerHTML = AF.pending.map(function(it, i){ return '<div class="af-pi'+(it.err?' bad':'')+'"><span>'+esc(it.file.name)+' <span class="tiny">'+pfFmt(it.file.size)+'</span></span>'+(it.err?'<span class="pph-err">'+esc(it.err)+'</span>':'')+'<button type="button" class="pph-x" data-afrm="'+i+'" aria-label="선택 취소">✕</button></div>'; }).join("");
-    var okN = AF.pending.filter(function(x){ return !x.err; }).length, ub = $("afUp");
-    if (ub){ ub.disabled = !okN || AF.busy; ub.textContent = okN ? "파일 업로드 ("+okN+"개)" : "파일 업로드"; }
-    el.querySelectorAll("[data-afrm]").forEach(function(b){ b.addEventListener("click", function(){ AF.pending.splice(+this.getAttribute("data-afrm"), 1); drawPending(); }); });
+  pageShell("기타 서류", "공문 · 안내문 · 협조 요청서 등을 메일처럼 제목 · 내용 · 첨부 파일로 올려 보관합니다. 작성자와 작성 시점은 자동으로 기록됩니다.", "");
+  var host = pbody(), canEdit = apCanEdit(), list = apList();
+  var cur = AP.view ? apDoc().posts[AP.view] : null;
+  if (AP.view && !cur) AP.view = null;
+  function msgHtml(){ return (AP.msg||[]).map(function(x){ return '<p class="msg'+(x.ok?' ok':'')+'" style="margin:8px 0 0">'+esc(x.t)+'</p>'; }).join(""); }
+
+  /* ① 글 보기 */
+  if (cur){
+    var files = cur.files || [];
+    host.appendChild(h(card(esc(cur.title), '<span class="tiny">'+cur._no+'번 글</span>',
+      '<dl class="ap-meta"><div><dt>작성자</dt><dd>'+esc(cur.authorName||"-")+'</dd></div><div><dt>작성 일시</dt><dd>'+esc(apWhen(cur.createdAt))+'</dd></div></dl>' +
+      '<div class="ap-body">'+(cur.body ? esc(cur.body) : '<span class="tiny">(내용 없음)</span>')+'</div>' +
+      '<h4 class="ap-h">첨부 파일 '+files.length+'개</h4>' +
+      (files.length ? '<ul class="ap-files">' + files.map(function(f, i){
+        return '<li><span>📎 '+esc(f.file_name)+' <span class="tiny">'+pfFmt(f.file_size)+'</span></span><span style="white-space:nowrap"><button type="button" class="btn btn-sm btn-out" data-apv="'+i+'">보기</button> <button type="button" class="btn btn-sm btn-out" data-apd="'+i+'">다운로드</button></span></li>';
+      }).join("") + '</ul>' : '<p class="tiny">첨부 파일이 없습니다.</p>') +
+      '<div id="apMsg">'+msgHtml()+'</div>' +
+      '<div class="btnrow"><button type="button" class="btn btn-sm btn-out" id="apBack">← 목록으로</button><span style="flex:1"></span>'+(canEdit?'<button type="button" class="btn btn-sm btn-danger" id="apDel">글 삭제</button>':'')+'</div>')));
+    host.querySelectorAll("[data-apv]").forEach(function(b){ b.addEventListener("click", function(){ afOpen(files[+this.getAttribute("data-apv")], false).catch(function(e){ toast("열지 못했습니다: " + pfErr(e)); }); }); });
+    host.querySelectorAll("[data-apd]").forEach(function(b){ b.addEventListener("click", function(){ afOpen(files[+this.getAttribute("data-apd")], true).catch(function(e){ toast("내려받지 못했습니다: " + pfErr(e)); }); }); });
+    $("apBack").addEventListener("click", function(){ AP.view = null; AP.msg = null; renderMain(); });
+    if (canEdit) $("apDel").addEventListener("click", async function(){
+      if (!window.confirm("이 글을 삭제할까요?\n" + cur.title + (files.length ? "\n첨부 파일 " + files.length + "개도 함께 지워지며 되돌릴 수 없습니다." : ""))) return;
+      this.disabled = true;
+      delete apDoc().posts[cur.id];
+      if (REAL){ await realSave(); if (RS.err){ apDoc().posts[cur.id] = cur; this.disabled = false; AP.msg = [{ t:"삭제하지 못했습니다: " + RS.err }]; $("apMsg").innerHTML = msgHtml(); return; } }
+      for (var i = 0; i < files.length; i++) await apRemoveFile(files[i]);
+      AP.view = null; AP.msg = [{ t:"‘" + cur.title + "’ 글을 삭제했습니다.", ok:true }]; renderMain();
+    });
+    return;
   }
-  async function addFiles(files){
-    files = Array.prototype.slice.call(files || []).slice(0, Math.max(0, 20 - AF.pending.length));
-    for (var i = 0; i < files.length; i++) AF.pending.push({ file:files[i], err: await pfCheck("MATERIAL", files[i]) });
-    msg(AF.pending.filter(function(x){ return x.err; }).map(function(x){ return { t:x.file.name + ": " + x.err + " (업로드에서 제외)" }; }));
-    drawPending();
-  }
-  async function drawList(force){
-    var g = $("afList"); if (!g) return;
-    try {
-      var list = await afList(force);
-      if (!$("afList")) return;
-      $("afCnt").textContent = list.length + "개";
-      g.innerHTML = tbl(["번호","파일명","업로드 날짜","관리"], list.length ? list.map(function(x){
-        return '<tr><td class="num">'+esc(x.no)+'</td><td><button type="button" class="lnk-b" data-afv="'+esc(x.id)+'" title="열기">'+esc(x.file_name)+'</button><div class="tiny">'+pfFmt(x.file_size)+(x.uploaded_by_name?' · '+esc(x.uploaded_by_name):'')+'</div></td>' +
-          '<td class="num">'+esc(ymd(new Date(x.uploaded_at)))+'</td>' +
-          '<td style="white-space:nowrap"><button type="button" class="btn btn-sm btn-out" data-afd="'+esc(x.id)+'">다운로드</button> <button type="button" class="btn btn-sm btn-out" data-afv="'+esc(x.id)+'">보기</button>'+(canEdit?' <button type="button" class="btn btn-sm btn-danger" data-afx="'+esc(x.id)+'">삭제</button>':'')+'</td></tr>';
-      }).join("") : '<tr><td colspan="4" class="empty">아직 올린 파일이 없습니다.</td></tr>');
-      function find(id){ return list.filter(function(x){ return String(x.id) === id; })[0]; }
-      g.querySelectorAll("[data-afv]").forEach(function(b){ b.addEventListener("click", function(){ afOpen(find(this.getAttribute("data-afv")), false).catch(function(e){ toast("열지 못했습니다: " + pfErr(e)); }); }); });
-      g.querySelectorAll("[data-afd]").forEach(function(b){ b.addEventListener("click", function(){ afOpen(find(this.getAttribute("data-afd")), true).catch(function(e){ toast("내려받지 못했습니다: " + pfErr(e)); }); }); });
-      g.querySelectorAll("[data-afx]").forEach(function(b){ b.addEventListener("click", async function(){
-        var x = find(this.getAttribute("data-afx"));
-        if (!window.confirm(x.no + "번 파일을 삭제할까요?\n" + x.file_name + "\n삭제하면 되돌릴 수 없습니다.")) return;
-        this.disabled = true;
-        try { await afDelete(x); msg([{ t:x.file_name + " 파일을 삭제했습니다.", ok:true }]); drawList(true); }
-        catch (e){ this.disabled = false; msg([{ t:"삭제하지 못했습니다: " + pfErr(e) }]); }
-      }); });
-    } catch (e){ g.innerHTML = '<p class="msg">파일 목록을 불러오지 못했습니다: '+esc(pfErr(e))+'</p>'; }
-  }
-  if (canEdit){
+
+  /* ② 새 글 쓰기 */
+  if (canEdit && AP.compose){
+    var who = (REAL && RS.me ? RS.me.name : SESSION.name) || "";
+    host.appendChild(h(card("새 글 쓰기", '<span class="tiny">작성자 <b>'+esc(who)+'</b> · 작성 시점은 등록할 때 자동 기록</span>',
+      '<label class="ap-lbl" for="apTitle">제목 <span style="color:#C0392B">*</span></label><input id="apTitle" class="ap-in" maxlength="200" placeholder="예) 2026년 2학기 현장실습 협조 요청 공문" value="'+esc(AP.dTitle||"")+'">' +
+      '<label class="ap-lbl" for="apBody">내용</label><textarea id="apBody" class="ap-in" rows="9" maxlength="5000" placeholder="전달할 내용을 적어 주세요.">'+esc(AP.dBody||"")+'</textarea>' +
+      '<label class="ap-lbl">첨부 파일</label>' +
+      '<label class="pph-drop" id="afDrop"><input type="file" id="afIn" accept="'+PF.MATERIAL.accept+'" multiple hidden><span class="btn btn-sm btn-out" aria-hidden="true">파일 선택</span><span class="tiny">또는 파일을 여기로 끌어다 놓으세요 · '+PF.MATERIAL.rule+'</span></label>' +
+      '<div id="afPend" class="af-pend"></div>' +
+      '<div class="pph-prog" id="afProg" hidden style="margin-top:10px"><div class="trk"><i></i></div><span></span></div>' +
+      '<div id="apMsg">'+msgHtml()+'</div>' +
+      '<div class="btnrow"><button type="button" class="btn btn-sm btn-out" id="apCancel">취소</button><span style="flex:1"></span><button type="button" class="btn btn-sm btn-grad" id="apSend">등록</button></div>')));
+    $("apTitle").addEventListener("input", function(){ AP.dTitle = this.value; if (AP.msg){ AP.msg = null; $("apMsg").innerHTML = ""; } });
+    $("apBody").addEventListener("input", function(){ AP.dBody = this.value; });
+    function drawPending(){
+      var el = $("afPend"); if (!el) return;
+      el.innerHTML = AP.pending.map(function(it, i){ return '<div class="af-pi'+(it.err?' bad':'')+'"><span>'+esc(it.file.name)+' <span class="tiny">'+pfFmt(it.file.size)+'</span></span>'+(it.err?'<span class="pph-err">'+esc(it.err)+'</span>':'')+'<button type="button" class="pph-x" data-afrm="'+i+'" aria-label="첨부 취소">✕</button></div>'; }).join("");
+      el.querySelectorAll("[data-afrm]").forEach(function(b){ b.addEventListener("click", function(){ AP.pending.splice(+this.getAttribute("data-afrm"), 1); drawPending(); }); });
+    }
+    async function addFiles(fl){
+      fl = Array.prototype.slice.call(fl || []).slice(0, Math.max(0, 20 - AP.pending.length));
+      for (var i = 0; i < fl.length; i++) AP.pending.push({ file:fl[i], err: await pfCheck("MATERIAL", fl[i]) });
+      drawPending();
+    }
     $("afIn").addEventListener("change", function(){ addFiles(this.files); this.value = ""; });
     var dz = $("afDrop");
     ["dragenter","dragover"].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.add("on"); }); });
     ["dragleave","drop"].forEach(function(ev){ dz.addEventListener(ev, function(e){ e.preventDefault(); dz.classList.remove("on"); }); });
     dz.addEventListener("drop", function(e){ addFiles(e.dataTransfer && e.dataTransfer.files); });
-    $("afUp").addEventListener("click", async function(){
-      var items = AF.pending.filter(function(x){ return !x.err; }); if (!items.length || AF.busy) return;
-      AF.busy = true; this.disabled = true;
-      var pg = $("afProg"), bar = pg.querySelector("i"), lab = pg.querySelector("span"); pg.hidden = false;
-      var res = [];
-      for (var i = 0; i < items.length; i++){
-        lab.textContent = "업로드 중 " + (i+1) + " / " + items.length + " · " + items[i].file.name; bar.style.width = (i / items.length * 100) + "%";
-        try { await afUpload(items[i].file); items[i].done = true; res.push({ t:items[i].file.name + " 업로드 완료", ok:true }); }
-        catch (e){ res.push({ t:items[i].file.name + " 업로드 실패: " + pfErr(e) }); }
-      }
-      bar.style.width = "100%"; lab.textContent = "완료"; AF.busy = false;
-      AF.pending = AF.pending.filter(function(x){ return !x.done && !x.err; });
-      var okN = res.filter(function(x){ return x.ok; }).length;
-      res.unshift({ t:okN + "개 업로드 성공" + (res.length - okN ? ", " + (res.length - okN) + "개 실패" : ""), ok: okN === res.length });
-      msg(res); setTimeout(function(){ var p = $("afProg"); if (p) p.hidden = true; }, 1200);
-      drawPending(); AF.cache = null; drawList(true);
-    });
     drawPending();
+    $("apCancel").addEventListener("click", function(){
+      if ((AP.dTitle || AP.dBody || AP.pending.length) && !window.confirm("작성 중인 글을 지울까요?")) return;
+      AP.compose = false; AP.pending = []; AP.dTitle = AP.dBody = ""; AP.msg = null; renderMain();
+    });
+    $("apSend").addEventListener("click", async function(){
+      if (AP.busy) return;
+      var title = ($("apTitle").value || "").trim(), body = ($("apBody").value || "").trim();
+      if (!title){ AP.msg = [{ t:"제목을 적어 주세요." }]; $("apMsg").innerHTML = msgHtml(); $("apTitle").focus(); return; }
+      if (AP.pending.some(function(x){ return x.err; })){ AP.msg = [{ t:"올릴 수 없는 파일이 있습니다. 빨간 칸의 파일을 ✕로 빼고 다시 눌러 주세요." }]; $("apMsg").innerHTML = msgHtml(); return; }
+      AP.busy = true; this.disabled = true;
+      var items = AP.pending.slice(), stored = [], pg = $("afProg"), bar = pg.querySelector("i"), lab = pg.querySelector("span");
+      try {
+        if (items.length) pg.hidden = false;
+        for (var i = 0; i < items.length; i++){
+          lab.textContent = "첨부 파일 올리는 중 " + (i+1) + " / " + items.length + " · " + items[i].file.name; bar.style.width = (i / items.length * 100) + "%";
+          try { stored.push(await adminStore(items[i].file)); }
+          catch (e){ throw new Error(items[i].file.name + " 파일을 올리지 못했습니다: " + pfErr(e)); }
+        }
+        bar.style.width = "100%";
+        // 작성자 · 작성 시점 자동 기록
+        var me = REAL && RS.me ? RS.me : SESSION;
+        var post = { id:pfUuid(), title:title.slice(0, 200), body:body.slice(0, 5000), files:stored,
+                     authorId:me.id, authorName:me.name || "", authorRole:SESSION.role, createdAt:new Date().toISOString() };
+        apDoc().posts[post.id] = post;
+        if (REAL){ await realSave(); if (RS.err){ delete apDoc().posts[post.id]; throw new Error("글을 저장하지 못했습니다: " + RS.err); } }
+        AP.busy = false; AP.compose = false; AP.pending = []; AP.dTitle = AP.dBody = "";
+        AP.msg = [{ t:"‘" + post.title + "’ 글을 등록했습니다." + (stored.length ? " (첨부 " + stored.length + "개)" : ""), ok:true }];
+        renderMain();
+      } catch (e){
+        for (var j = 0; j < stored.length; j++) await apRemoveFile(stored[j]);   // 실패하면 이번에 올린 첨부는 지움
+        AP.busy = false; this.disabled = false; pg.hidden = true;
+        AP.msg = [{ t:(e && e.message) || String(e) }]; $("apMsg").innerHTML = msgHtml();
+      }
+    });
+    return;
   }
-  drawList(false);
-  // 기존 기능 유지: 기관·학생 서류 수신 관리 (DB.documents)
+
+  /* ③ 글 목록 (받은 편지함처럼 최근 글이 위) */
+  var rows = list.map(function(p){
+    var n = (p.files||[]).length;
+    return '<tr class="ap-row" data-apo="'+esc(p.id)+'" tabindex="0"><td class="num">'+p._no+'</td><td><b>'+esc(p.title)+'</b>'+(n?' <span class="tiny">📎 '+n+'</span>':'')+
+      (p.body ? '<div class="tiny ap-prev">'+esc(p.body.replace(/\s+/g, " ").slice(0, 80))+'</div>' : '')+'</td><td>'+esc(p.authorName||"-")+'</td><td class="num" style="white-space:nowrap">'+esc(apWhen(p.createdAt))+'</td></tr>';
+  }).join("");
+  host.appendChild(h(card("기타 서류", '<span class="tiny">'+list.length+'건</span>' + (canEdit ? ' <button type="button" class="btn btn-sm btn-grad" id="apNew" style="margin-left:8px">✎ 새 글 쓰기</button>' : ''),
+    '<div id="apMsg">'+msgHtml()+'</div>' +
+    tbl(["번호","제목","작성자","작성 일시"], rows || '<tr><td colspan="4" class="empty">아직 올린 글이 없습니다.'+(canEdit?' [새 글 쓰기]로 첫 글을 올려 보세요.':'')+'</td></tr>'))));
+  AP.msg = null;
+  if (canEdit) $("apNew").addEventListener("click", function(){ AP.compose = true; AP.msg = null; renderMain(); });
+  host.querySelectorAll("[data-apo]").forEach(function(r){
+    function go(){ AP.view = r.getAttribute("data-apo"); AP.msg = null; renderMain(); }
+    r.addEventListener("click", go); r.addEventListener("keydown", function(e){ if (e.key === "Enter") go(); });
+  });
+
+  /* 예전 방식으로 올린 행정 파일 — 있을 때만 아래에 그대로 보여 줌 (지우지 않음) */
+  var old = h('<div></div>'); host.appendChild(old);
+  afList(false).then(function(fl){
+    if (!fl.length || !old.isConnected) return;
+    old.appendChild(h(card("이전에 올린 행정 파일", '<span class="tiny">'+fl.length+'개 · 글 형식 이전</span>',
+      tbl(["번호","파일명","업로드 날짜","관리"], fl.map(function(x){
+        return '<tr><td class="num">'+esc(x.no)+'</td><td>'+esc(x.file_name)+'<div class="tiny">'+pfFmt(x.file_size)+(x.uploaded_by_name?' · '+esc(x.uploaded_by_name):'')+'</div></td><td class="num">'+esc(ymd(new Date(x.uploaded_at)))+'</td>' +
+          '<td style="white-space:nowrap"><button type="button" class="btn btn-sm btn-out" data-afd="'+esc(x.id)+'">다운로드</button> <button type="button" class="btn btn-sm btn-out" data-afv="'+esc(x.id)+'">보기</button>'+(canEdit?' <button type="button" class="btn btn-sm btn-danger" data-afx="'+esc(x.id)+'">삭제</button>':'')+'</td></tr>';
+      }).join("")))));
+    function find(id){ return fl.filter(function(x){ return String(x.id) === id; })[0]; }
+    old.querySelectorAll("[data-afv]").forEach(function(b){ b.addEventListener("click", function(){ afOpen(find(this.getAttribute("data-afv")), false).catch(function(e){ toast("열지 못했습니다: " + pfErr(e)); }); }); });
+    old.querySelectorAll("[data-afd]").forEach(function(b){ b.addEventListener("click", function(){ afOpen(find(this.getAttribute("data-afd")), true).catch(function(e){ toast("내려받지 못했습니다: " + pfErr(e)); }); }); });
+    old.querySelectorAll("[data-afx]").forEach(function(b){ b.addEventListener("click", async function(){
+      var x = find(this.getAttribute("data-afx"));
+      if (!window.confirm(x.no + "번 파일을 삭제할까요?\n" + x.file_name + "\n삭제하면 되돌릴 수 없습니다.")) return;
+      this.disabled = true;
+      try { await afDelete(x); toast(x.file_name + " 파일을 삭제했습니다."); renderMain(); } catch (e){ this.disabled = false; toast("삭제하지 못했습니다: " + pfErr(e)); }
+    }); });
+  }).catch(function(){});
+
+  if (!DB.documents.length) return;
+  // 기존 기능 유지: 기관 서류 수신 관리 (DB.documents — 있을 때만)
   var miss=DB.documents.filter(function(d){return d.status==="REQUESTED"||d.status==="REJECTED";}).length;
   var wait=DB.documents.filter(function(d){return d.status==="SUBMITTED";}).length;
   var done=DB.documents.filter(function(d){return d.status==="VERIFIED";}).length;
@@ -6669,7 +6764,7 @@ var RS = { me:null, saved:{}, savedProfiles:{}, timer:null, busy:false, pending:
 /* 공용 문서: 기관·안내서·기초 코드 등 (public = 로그인한 모든 사용자 읽기, 교수·행정·관리자 쓰기) */
 var REAL_PUBLIC = ["codes","apxInsts","handbook","guide","contacts","term","prepSessions","preEducation","reqDocList","assignments","surveyItems","instSurveyItems","evalItems","prepGate","docCats","docMaster","instDocMaster","rbac"];
 /* 교직원 전용 문서: 선발 점수·성적·순회지도 등 */
-var REAL_STAFF = ["apxSel","grading","visits","facultyChecks","surveyNotes","documents","evaluations","instOps","evalItemsInst","instSurveys","adminFilesDoc","instDocStatus","docVerifyLog"];
+var REAL_STAFF = ["apxSel","grading","visits","facultyChecks","surveyNotes","documents","evaluations","instOps","evalItemsInst","instSurveys","adminFilesDoc","adminPosts","instDocStatus","docVerifyLog"];
 function realGet(key){
   switch (key){
     case "codes": return { codeGroups:DB.codeGroups, codes:DB.codes };

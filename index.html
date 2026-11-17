@@ -590,6 +590,13 @@ window.APP_CONFIG = {
 
   td.sd-inst { background: #F7F9FA; vertical-align: top; min-width: 120px; }
   .sd-doc { color: #6B7680; } .mu-t { color: #9AA3AB; }
+  .iv-ea { display: flex; gap: 10px; margin-top: 3px; } .iv-ea .lnk-b { font-size: 12px; color: #2E6B74; } .iv-ea .iv-del { color: #C0392B; }
+  .iv-ed { display: flex; flex-direction: column; gap: 6px; min-width: 220px; } .iv-ed .cell { width: 100%; }
+  .iv-add { margin-top: 10px; flex-wrap: wrap; }
+  .fp-list { display: flex; flex-direction: column; gap: 10px; } .fp-it { border: 1px solid #E3E7EA; border-radius: 10px; padding: 12px 14px; }
+  .fp-hd { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; } .fp-body { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: #44515A; margin-top: 6px; line-height: 1.6; }
+  .fp-files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .iv-title { font-size: 17px; font-weight: 700; margin: 2px 0 10px; } .iv-new { width: 100%; margin-bottom: 10px; }
   .ap-lbl { display: block; font-size: 13px; font-weight: 600; color: #2B363D; margin: 16px 0 6px; } .ap-lbl:first-child { margin-top: 0; }
   .ap-in { display: block; width: 100%; box-sizing: border-box; border: 1px solid #D5DBDF; border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: inherit; background: #fff; color: inherit; }
   textarea.ap-in { resize: vertical; line-height: 1.7; min-height: 180px; }
@@ -1402,16 +1409,11 @@ var NAV = {
   ],
   STAFF: [
     { id:"home", label:"홈", ic:"■" },
-    { id:"institutions", label:"기관 리스트", ic:"■" },
     { id:"instView", label:"기관별 현황", ic:"■" },
-    { id:"placement", label:"배정 관리", ic:"■" },
-    { id:"grp_staff_docs", label:"서류 관리", ic:"■", children:[
-      { id:"docStudents", label:"학생 제출 서류" },
-      { id:"docInst", label:"기타 서류" },
-      { id:"docForms", label:"서식 관리표 (전체)" }
-    ]},
-    { id:"docmaster", label:"제출 서류 설정", ic:"■" },
-    { id:"survey", label:"만족도 조사", ic:"■" }
+    { id:"survey", label:"만족도 조사", ic:"■" },
+    { id:"grp_staff_etc", label:"기타", ic:"■", children:[
+      { id:"docAdmin", label:"서류 관리" }
+    ]}
   ],
   ADMIN: [
     { id:"accounts", label:"계정 관리", ic:"■" },
@@ -1431,7 +1433,7 @@ var NAV_PERM = {
     stats:"faculty.stats", kpi:"faculty.kpi", grades:"faculty.grades", guideadmin:"faculty.guideadmin", survey:"faculty.survey", accounts:"faculty.accounts" },
   LEAD:{ instops:"lead.instops", students:"lead.students", attend:"lead.attend", calendar:"lead.calendar", eval:"lead.eval", instsurvey:"lead.instsurvey", cert:"lead.cert" },
   FIELD:{ students:"field.students", review:"field.review" },
-  STAFF:{ home:"staff.home", institutions:"staff.institutions", placement:"staff.placement", documents:"staff.documents", docStudents:"staff.documents.students", docVerified:"staff.documents.verified", instView:"staff.instview", docInst:"staff.documents.receive", docForms:"staff.documents.forms", docmaster:"staff.docmaster", survey:"staff.survey" },
+  STAFF:{ home:"staff.home", institutions:"staff.institutions", placement:"staff.placement", documents:"staff.documents", docStudents:"staff.documents.students", docVerified:"staff.documents.verified", instView:"staff.instview", docAdmin:"staff.documents", docInst:"staff.documents.receive", docFormFiles:"staff.documents.formfiles", docForms:"staff.documents.forms", docmaster:"staff.docmaster", survey:"staff.survey" },
   ADMIN:{ accounts:"admin.accounts", codes:"admin.codes", logs:"admin.logs", backup:"admin.backup" }
 };
 var USER_OVERRIDES = {};  // {userId: {grant:[], revoke:[]}}  — 계정 권한 부여 저장 시 반영
@@ -1559,7 +1561,7 @@ function highlightNav(){
   var btns = $("sidebar").querySelectorAll("[data-nav]");
   for (var i=0;i<btns.length;i++){
     var v = btns[i].getAttribute("data-nav");
-    btns[i].classList.toggle("on", v===cur || v===VIEW || (cur==="guide:wish" && v==="guide:criteria"));
+    btns[i].classList.toggle("on", v===cur || v===VIEW || (cur==="guide:wish" && v==="guide:criteria") || (/^(docmaster|institutions|placement|docStudents)$/.test(VIEW) && v==="instView") || (/^(docInst|docFormFiles|docForms)$/.test(VIEW) && v==="docAdmin"));   // 제출 서류 설정은 기관별 현황에서 들어감
   }
 }
 function navTo(view){
@@ -1799,6 +1801,7 @@ var PERM_CATALOG = [
      { key:"staff.documents.students", label:"학생 제출 서류", desc:"기관별 학생 서류 확인 · 기관별 서류 PDF 한 파일로 저장 (점수 정보 제외)" },
      { key:"staff.documents.verified", label:"확인 완료 학생" },
      { key:"staff.documents.receive", label:"기타 서류", desc:"제목 · 내용 · 첨부 파일 글 올리기 · 보기 · 삭제" },
+     { key:"staff.documents.formfiles", label:"양식 파일", desc:"학생이 내려받을 서류 양식 올리기 · 삭제 (학생 [제출 서류] 화면에 표시)" },
      { key:"staff.documents.forms", label:"서식 관리표(전체)" }]},
    { key:"staff.docmaster", label:"제출 서류 설정 (서류 마스터 코드)", desc:"공통 서류 · 실습기관별 제출 서류 지정" },
    { key:"staff.survey", label:"만족도 조사" }]},
@@ -5222,15 +5225,44 @@ function docMaster(){
   return DB.docMaster;
 }
 function docNextCode(){ var n = docMaster().items.reduce(function(m, x){ var k = parseInt(String(x.code||"").replace(/\D/g, ""), 10); return isNaN(k) ? m : Math.max(m, k); }, 0); return "DOC-" + String(n+1).padStart(2, "0"); }
-/* 학생이 내야 할 서류 = 공통 서류 + 배정된 실습기관의 서류 */
+/* ---------- 기관별 서류 조정 (학생 제출 서류 · 기관 서류 마스터 공용) ----------
+ *  m.excl[기관id]  = [서류id]               이 기관에서만 뺀 공통 서류
+ *  m.alias[기관id] = { 서류id:{ name, desc } } 이 기관에서만 바꾼 서류 이름 · 안내 */
+function miApply(m, iid, list){
+  var ex = (m.excl || {})[iid] || [], al = (m.alias || {})[iid] || {};
+  return list.filter(function(x){ return ex.indexOf(x.id) < 0; }).map(function(x){
+    var a = al[x.id]; return a ? Object.assign({}, x, { name:a.name || x.name, desc:a.desc != null ? a.desc : x.desc, _alias:true }) : x;
+  });
+}
+function docTpl(iid, id){ var t = (docMaster().tpl || {})[iid] || {}; return t[id] || null; }
+function setDocTpl(iid, id, f){ var m = docMaster(); m.tpl = m.tpl || {}; var t = m.tpl[iid] = m.tpl[iid] || {}; if (f) t[id] = f; else delete t[id]; }
+function miUsers(m, id){ return Object.keys(m.byInst || {}).filter(function(k){ return (m.byInst[k] || []).indexOf(id) >= 0; }); }
+function miRename(m, iid, x, name, desc){
+  m.alias = m.alias || {};
+  var only = !x.common && miUsers(m, x.id).join() === String(iid);
+  if (only){ x.name = name; x.desc = desc; if (m.alias[iid]) delete m.alias[iid][x.id]; }   // 이 기관만 쓰는 서류 → 서류 자체를 고침
+  else (m.alias[iid] = m.alias[iid] || {})[x.id] = { name:name, desc:desc };             // 다른 기관도 쓰는 서류 → 이 기관에서만 다른 이름
+}
+function miRemove(m, iid, x, keepItem){
+  m.excl = m.excl || {}; m.byInst = m.byInst || {};
+  if (x.common){ var e = m.excl[iid] = m.excl[iid] || []; if (e.indexOf(x.id) < 0) e.push(x.id); }
+  else m.byInst[iid] = (m.byInst[iid] || []).filter(function(id){ return id !== x.id; });
+  if (m.alias && m.alias[iid]) delete m.alias[iid][x.id];
+  if (!x.common && !keepItem && !miUsers(m, x.id).length) m.items = m.items.filter(function(y){ return y.id !== x.id; });   // 어느 기관도 안 쓰면 목록에서도 정리
+}
+function miAdd(m, iid, item){
+  m.byInst = m.byInst || {}; m.items.push(item);
+  var arr = m.byInst[iid] = m.byInst[iid] || []; if (arr.indexOf(item.id) < 0) arr.push(item.id);
+}
+/* 학생이 내야 할 서류 = 배정된 실습기관의 서류만 (공통 서류 + 그 기관 지정 서류, 기관에서 뺀 것 제외)
+ *  실습기관이 배정되기 전에는 보이지 않음 */
 function reqDocsFor(sid){
-  var m = docMaster(), s = studentById(sid) || {}, inst = m.byInst[s.institutionId] || [];
-  return m.items.filter(function(x){ return x.active && (x.common || inst.indexOf(x.id) >= 0); })
-    .sort(function(a, b){ return (b.common - a.common) || String(a.code).localeCompare(String(b.code)); });
+  var s = studentById(sid) || {};
+  return s.institutionId ? reqDocsForInst(s.institutionId) : [];
 }
 function docStatus(sid, id){ var ex = DB.studentExtra[sid] || {}; return (ex.docs || {})[id] || "NONE"; }
 function docDone(sid){ return reqDocsFor(sid).filter(function(rd){ return docStatus(sid, rd.id) === "VERIFIED"; }).length; }
-var DOC_ST = { NONE:["미제출","b-slate"], SUBMITTED:["확인 대기","b-amber"], VERIFIED:["수신 완료","b-teal"], REJECTED:["반려","b-rose"] };
+var DOC_ST = { NONE:["미제출","b-slate"], SUBMITTED:["확인 대기","b-amber"], VERIFIED:["승인 완료","b-teal"], REJECTED:["반려","b-rose"] };
 function docFileBtn(sid, id){
   var key = "doc." + id;
   if (REAL){ var f = (RS.files[sid]||{})[key]; if (f) return '<button type="button" class="lnk-b" data-rfile="'+esc(sid)+'|'+esc(key)+'" title="열기">📄 '+esc(f.name)+'</button>'; }
@@ -5313,7 +5345,7 @@ RENDER.STAFF.home = function(){
     (rows ? tbl(["학생","배정 기관","진행","남은 서류"], rows) : '<div class="empty" style="padding:18px 0">모든 학생이 필수 서류를 완료했습니다.</div>')));
   host.appendChild(dc);
   $("shAll").addEventListener("change", function(){ UI.shAll = this.checked; renderMain(); });
-  $("shGo").addEventListener("click", function(){ UI.sdF = "todo"; navTo("docStudents"); });
+  $("shGo").addEventListener("click", function(){ UI.ivTab = "sdocs"; navTo("instView"); });
   if (docMiss.length || docWait.length){
     var drows = docMiss.concat(docWait).map(function(d){
       return '<tr><td class="mut">'+esc(d.scope)+'</td><td>'+esc(d.target)+'</td><td>'+esc(d.label)+'</td><td class="num">'+esc(d.dueDate)+'</td><td>'+badge(DOCST,d.status)+'</td></tr>';
@@ -5321,7 +5353,7 @@ RENDER.STAFF.home = function(){
     var oc = h(card("처리 필요 서류 (기타 서류)", (docMiss.length+docWait.length)+"건",
       tbl(["구분","대상","서류","마감","상태"], drows) + '<div class="btnrow"><button type="button" class="btn btn-sm btn-out" id="goDocBtn">서류 관리로 이동</button></div>'));
     host.appendChild(oc);
-    $("goDocBtn").addEventListener("click", function(){ navTo("docInst"); });
+    $("goDocBtn").addEventListener("click", function(){ UI.daTab = "docInst"; navTo("docAdmin"); });
   }
 };
 
@@ -5495,7 +5527,8 @@ async function staffDocsLoad(){
 }
 function reqDocsForInst(iid){
   var m = docMaster(), inst = m.byInst[iid] || [];
-  return m.items.filter(function(x){ return x.active && (x.common || inst.indexOf(x.id) >= 0); }).sort(function(a, b){ return (b.common - a.common) || String(a.code).localeCompare(String(b.code)); });
+  return miApply(m, iid, m.items.filter(function(x){ return x.active && (x.common || inst.indexOf(x.id) >= 0); }))
+    .sort(function(a, b){ return (b.common - a.common) || String(a.code).localeCompare(String(b.code)); });
 }
 /* 수신 확인 · 반려 — 실제 모드는 서버 함수로 그 학생의 해당 서류 상태만 바꿈 */
 async function setDocStatus(sid, docId, st, note){
@@ -5809,7 +5842,7 @@ RENDER.STAFF.docStudents = function(){
     return '<button type="button" class="btn btn-sm '+(UI.sdF===f[0]?'btn-teal':'btn-out')+'" data-sdf="'+f[0]+'">'+f[1]+' <b>'+cnt[f[0]]+'</b></button>'; }).join("") +
     '<span style="flex:1"></span>' + (UI.sdF === "done" && cnt.done ? '<button type="button" class="btn btn-sm btn-out" id="sdXls">확인 완료 명단 엑셀</button>' : '') +
     (REAL ? '<button type="button" class="btn btn-sm btn-out" id="sdReload">새로고침</button>' : '') +
-    '<button type="button" class="btn btn-sm btn-out" id="sdMaster">제출 서류 설정</button></div>'));
+    '</div>'));
   host.appendChild(h('<p class="tiny" style="margin:-4px 0 12px">'+{ done:"필수 서류를 모두 수신 확인한 학생입니다.", todo:"학생이 올린 서류 중 아직 확인하지 않은 서류가 있는 학생입니다. [수신 확인] 또는 [반려]를 눌러 주세요.", missing:"아직 내지 않았거나 반려된 서류가 있는 학생입니다. (확인할 서류는 없음)" }[UI.sdF]+'</p>'));
   var any = false;
   order.forEach(function(iid){
@@ -5837,7 +5870,6 @@ RENDER.STAFF.docStudents = function(){
   if (!any) host.appendChild(h('<div class="empty" style="padding:24px 0">'+{ done:"아직 필수 서류를 모두 확인받은 학생이 없습니다.", todo:"확인을 기다리는 서류가 없습니다.", missing:"미완료 학생이 없습니다." }[UI.sdF]+'</div>'));
   var sx = $("sdXls"); if (sx) sx.addEventListener("click", function(){ verifiedXlsx(this); });
   host.querySelectorAll("[data-sdf]").forEach(function(b){ b.addEventListener("click", function(){ UI.sdF = this.getAttribute("data-sdf"); renderMain(); }); });
-  $("sdMaster").addEventListener("click", function(){ navTo("docmaster"); });
   var rl = $("sdReload"); if (rl) rl.addEventListener("click", function(){ rl.disabled = true; (RS.me && RS.me.role === "STAFF" ? staffDocsLoad() : Promise.resolve()).then(function(){ renderMain(); toast("최신 서류 현황을 불러왔습니다."); }).catch(function(e){ rl.disabled = false; toast("불러오지 못했습니다: " + e.message); }); });
   host.querySelectorAll("[data-zip]").forEach(function(b){ b.addEventListener("click", function(){ instFolder(this.getAttribute("data-zip"), this, this.hasAttribute("data-zipv")); }); });
   host.querySelectorAll("[data-vd]").forEach(function(b){ b.addEventListener("click", function(){
@@ -5934,11 +5966,11 @@ async function afDelete(x){
  *  작성자 · 작성 시점은 등록하는 순간 로그인 계정과 현재 시각으로 자동 기록 (화면에서 고칠 수 없음) */
 var AP = { pending:[], busy:false, view:null, compose:false, msg:null };
 function apDoc(){ if (!DB.adminPosts || typeof DB.adminPosts !== "object" || !DB.adminPosts.posts) DB.adminPosts = { posts:{} }; return DB.adminPosts; }
-function apList(){
-  var all = Object.keys(apDoc().posts).map(function(k){ return apDoc().posts[k]; }).filter(Boolean)
+function apList(doc){
+  doc = doc || apDoc();
+  var all = Object.keys(doc.posts).map(function(k){ return doc.posts[k]; }).filter(Boolean)
     .sort(function(a, b){ return String(a.createdAt).localeCompare(String(b.createdAt)); });
-  all.forEach(function(p, i){ p._no = i + 1; });
-  return all.reverse();
+  return all.map(function(p, i){ return Object.assign({}, p, { _no:i + 1 }); }).reverse();   // 원본은 건드리지 않음 (번호는 화면용)
 }
 function apWhen(v){ if (!v) return ""; var d = new Date(v); return ymd(d) + " " + String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0"); }
 function apCanEdit(){ return ["STAFF","ADMIN"].indexOf((SESSION||{}).role) >= 0; }
@@ -5947,10 +5979,13 @@ async function apRemoveFile(f){
   var rm = await SB.storage.from(f.bucket || "admin-files").remove([f.storage_path]);
   if (rm.error) console.warn("첨부 파일 삭제 실패:", rm.error.message);
 }
-RENDER.STAFF.docInst = function(){
-  pageShell("기타 서류", "공문 · 안내문 · 협조 요청서 등을 메일처럼 제목 · 내용 · 첨부 파일로 올려 보관합니다. 작성자와 작성 시점은 자동으로 기록됩니다.", "");
-  var host = pbody(), canEdit = apCanEdit(), list = apList();
-  var cur = AP.view ? apDoc().posts[AP.view] : null;
+/* 제목 · 내용 · 첨부 파일 게시판 (기타 서류 · 양식 파일 공용)
+ *  cfg = { st:상태, doc:()=>{posts:{}}, store:파일 저장, remove:파일 삭제, open:파일 열기, title, sub, listTitle, ph, legacy } */
+function postBoard(cfg){
+  var AP = cfg.st, apDoc = cfg.doc, adminStore = cfg.store, apRemoveFile = cfg.remove, afOpen = cfg.open;
+  pageShell(cfg.title, cfg.sub, "");
+  var host = pbody(), canEdit = apCanEdit(), list = apList(apDoc());
+  var cur = AP.view ? list.filter(function(p){ return p.id === AP.view; })[0] : null;
   if (AP.view && !cur) AP.view = null;
   function msgHtml(){ return (AP.msg||[]).map(function(x){ return '<p class="msg'+(x.ok?' ok':'')+'" style="margin:8px 0 0">'+esc(x.t)+'</p>'; }).join(""); }
 
@@ -5972,8 +6007,8 @@ RENDER.STAFF.docInst = function(){
     if (canEdit) $("apDel").addEventListener("click", async function(){
       if (!window.confirm("이 글을 삭제할까요?\n" + cur.title + (files.length ? "\n첨부 파일 " + files.length + "개도 함께 지워지며 되돌릴 수 없습니다." : ""))) return;
       this.disabled = true;
-      delete apDoc().posts[cur.id];
-      if (REAL){ await realSave(); if (RS.err){ apDoc().posts[cur.id] = cur; this.disabled = false; AP.msg = [{ t:"삭제하지 못했습니다: " + RS.err }]; $("apMsg").innerHTML = msgHtml(); return; } }
+      var orig = apDoc().posts[cur.id]; delete apDoc().posts[cur.id];
+      if (REAL){ await realSave(); if (RS.err){ apDoc().posts[cur.id] = orig; this.disabled = false; AP.msg = [{ t:"삭제하지 못했습니다: " + RS.err }]; $("apMsg").innerHTML = msgHtml(); return; } }
       for (var i = 0; i < files.length; i++) await apRemoveFile(files[i]);
       AP.view = null; AP.msg = [{ t:"‘" + cur.title + "’ 글을 삭제했습니다.", ok:true }]; renderMain();
     });
@@ -5984,7 +6019,7 @@ RENDER.STAFF.docInst = function(){
   if (canEdit && AP.compose){
     var who = (REAL && RS.me ? RS.me.name : SESSION.name) || "";
     host.appendChild(h(card("새 글 쓰기", '<span class="tiny">작성자 <b>'+esc(who)+'</b> · 작성 시점은 등록할 때 자동 기록</span>',
-      '<label class="ap-lbl" for="apTitle">제목 <span style="color:#C0392B">*</span></label><input id="apTitle" class="ap-in" maxlength="200" placeholder="예) 2026년 2학기 현장실습 협조 요청 공문" value="'+esc(AP.dTitle||"")+'">' +
+      '<label class="ap-lbl" for="apTitle">제목 <span style="color:#C0392B">*</span></label><input id="apTitle" class="ap-in" maxlength="200" placeholder="'+esc(cfg.ph||"제목")+'" value="'+esc(AP.dTitle||"")+'">' +
       '<label class="ap-lbl" for="apBody">내용</label><textarea id="apBody" class="ap-in" rows="9" maxlength="5000" placeholder="전달할 내용을 적어 주세요.">'+esc(AP.dBody||"")+'</textarea>' +
       '<label class="ap-lbl">첨부 파일</label>' +
       '<label class="pph-drop" id="afDrop"><input type="file" id="afIn" accept="'+PF.MATERIAL.accept+'" multiple hidden><span class="btn btn-sm btn-out" aria-hidden="true">파일 선택</span><span class="tiny">또는 파일을 여기로 끌어다 놓으세요 · '+PF.MATERIAL.rule+'</span></label>' +
@@ -6053,7 +6088,7 @@ RENDER.STAFF.docInst = function(){
     return '<tr class="ap-row" data-apo="'+esc(p.id)+'" tabindex="0"><td class="num">'+p._no+'</td><td><b>'+esc(p.title)+'</b>'+(n?' <span class="tiny">📎 '+n+'</span>':'')+
       (p.body ? '<div class="tiny ap-prev">'+esc(p.body.replace(/\s+/g, " ").slice(0, 80))+'</div>' : '')+'</td><td>'+esc(p.authorName||"-")+'</td><td class="num" style="white-space:nowrap">'+esc(apWhen(p.createdAt))+'</td></tr>';
   }).join("");
-  host.appendChild(h(card("기타 서류", '<span class="tiny">'+list.length+'건</span>' + (canEdit ? ' <button type="button" class="btn btn-sm btn-grad" id="apNew" style="margin-left:8px">✎ 새 글 쓰기</button>' : ''),
+  host.appendChild(h(card(cfg.listTitle || cfg.title, '<span class="tiny">'+list.length+'건</span>' + (canEdit ? ' <button type="button" class="btn btn-sm btn-grad" id="apNew" style="margin-left:8px">✎ 새 글 쓰기</button>' : ''),
     '<div id="apMsg">'+msgHtml()+'</div>' +
     tbl(["번호","제목","작성자","작성 일시"], rows || '<tr><td colspan="4" class="empty">아직 올린 글이 없습니다.'+(canEdit?' [새 글 쓰기]로 첫 글을 올려 보세요.':'')+'</td></tr>'))));
   AP.msg = null;
@@ -6064,6 +6099,7 @@ RENDER.STAFF.docInst = function(){
   });
 
   /* 예전 방식으로 올린 행정 파일 — 있을 때만 아래에 그대로 보여 줌 (지우지 않음) */
+  if (!cfg.legacy) return true;
   var old = h('<div></div>'); host.appendChild(old);
   afList(false).then(function(fl){
     if (!fl.length || !old.isConnected) return;
@@ -6082,7 +6118,12 @@ RENDER.STAFF.docInst = function(){
       try { await afDelete(x); toast(x.file_name + " 파일을 삭제했습니다."); renderMain(); } catch (e){ this.disabled = false; toast("삭제하지 못했습니다: " + pfErr(e)); }
     }); });
   }).catch(function(){});
-
+  return true;
+}
+RENDER.STAFF.docInst = function(){
+  if (!postBoard({ st:AP, doc:apDoc, store:adminStore, remove:apRemoveFile, open:afOpen, legacy:true, title:"기타 서류", ph:"예) 2026년 2학기 현장실습 협조 요청 공문",
+    sub:"공문 · 안내문 · 협조 요청서 등을 메일처럼 제목 · 내용 · 첨부 파일로 올려 보관합니다. 작성자와 작성 시점은 자동으로 기록됩니다." })) return;
+  var host = pbody();
   if (!DB.documents.length) return;
   // 기존 기능 유지: 기관 서류 수신 관리 (DB.documents — 있을 때만)
   var miss=DB.documents.filter(function(d){return d.status==="REQUESTED"||d.status==="REJECTED";}).length;
@@ -6118,7 +6159,7 @@ RENDER.STAFF.docForms = function(){
 /* ---------- 학교 행정 · 제출 서류 설정 (서류 마스터 코드 · 실습기관별 지정) ---------- */
 RENDER.STAFF.docmaster = function(){
   var m = docMaster(), insts = apxInsts();
-  pageShell("제출 서류 설정", "학생이 낼 서류를 마스터 코드로 관리합니다. 모든 학생 공통 서류와, 실습기관마다 따로 내야 하는 서류를 정하면 학생 [제출 서류] 화면에 자동으로 나타납니다.", "");
+  pageShell("제출 서류 설정", "", "");
   var host = pbody();
   function used(id){ return DB.students.some(function(s){ return docStatus(s.id, id) !== "NONE"; }); }
   var rows = m.items.map(function(x){
@@ -6129,25 +6170,10 @@ RENDER.STAFF.docmaster = function(){
       '<td><label class="switch"><input type="checkbox" data-dm="'+esc(x.id)+'" data-f="active"'+(x.active?' checked':'')+'> 사용</label></td>' +
       '<td>'+(used(x.id) ? '<span class="tiny" title="학생 제출 기록이 있어 삭제 대신 [사용]을 끄세요">제출 기록 있음</span>' : '<button type="button" class="btn btn-sm btn-danger" data-dmdel="'+esc(x.id)+'">삭제</button>')+'</td></tr>';
   }).join("");
-  host.appendChild(h(card("① 서류 마스터 코드", m.items.length+"종",
+  host.appendChild(h(card("학생 제출 서류 마스터 코드", m.items.length+"종",
     tbl(["코드","서류명","학생 안내","적용 대상","사용",""], rows) +
     '<div class="toolbar" style="margin-top:12px"><span class="mono tiny">'+esc(docNextCode())+'</span><input class="cell" id="dmName" placeholder="새 서류명 (예: 기관 보안서약서)" style="flex:1;max-width:none"><input class="cell" id="dmDesc" placeholder="학생 안내 (선택)" style="flex:1;max-width:none">' +
-    '<select class="cell" id="dmCommon"><option value="0">실습기관별 지정</option><option value="1">모든 학생 공통</option></select><button type="button" class="btn btn-sm btn-grad" id="dmAdd">+ 서류 추가</button></div>' +
-    '<p class="tiny" style="margin-top:8px">학생이 이미 낸 서류는 삭제할 수 없습니다. 더 받지 않을 서류는 [사용]을 끄면 학생 화면과 현황에서 빠집니다.</p>')));
-  // ② 실습기관별 제출 서류
-  var inst = m.items.filter(function(x){ return x.active && !x.common; });
-  var common = m.items.filter(function(x){ return x.active && x.common; });
-  var cnt = {}; DB.students.forEach(function(s){ if (s.institutionId) cnt[s.institutionId] = (cnt[s.institutionId]||0) + 1; });
-  var mrows = insts.map(function(it){
-    var sel = m.byInst[it.id] || [];
-    return '<tr'+(it.open?'':' class="dm-off"')+'><td><span class="tag-inst">'+esc(it.grp)+'</span> <b>'+esc(it.name)+'</b><div class="tiny">배정 학생 '+(cnt[it.id]||0)+'명'+(it.open?'':' · 모집 안 함')+'</div></td>' +
-      inst.map(function(x){ return '<td class="dm-ck"><input type="checkbox" data-bi="'+esc(it.id)+'|'+esc(x.id)+'"'+(sel.indexOf(x.id)>=0?' checked':'')+' aria-label="'+esc(it.name)+' '+esc(x.name)+'"></td>'; }).join("") +
-      '<td class="num">'+(common.length + sel.filter(function(id){ return inst.some(function(x){ return x.id === id; }); }).length)+'종</td></tr>';
-  }).join("");
-  host.appendChild(h(card("② 실습기관별 제출 서류", insts.length+"곳",
-    '<p class="tiny" style="margin-bottom:8px">공통 서류 '+common.length+'종('+esc(common.map(function(x){ return x.name; }).join(", ")||"없음")+')은 모든 학생이 냅니다. 아래에서 기관마다 추가로 받을 서류를 체크하세요.</p>' +
-    (inst.length ? tbl(["실습기관"].concat(inst.map(function(x){ return x.code + " " + x.name; })).concat(["학생 제출 서류"]), mrows)
-      : '<p class="tiny">실습기관별로 지정한 서류가 없습니다. 위에서 적용 대상을 [실습기관별 지정]으로 한 서류를 추가하세요.</p>'))));
+    '<select class="cell" id="dmCommon"><option value="1">모든 학생 공통</option><option value="0">실습기관별 지정</option></select><button type="button" class="btn btn-sm btn-grad" id="dmAdd">+ 서류 추가</button></div>' )));
   function find(id){ return m.items.filter(function(x){ return x.id === id; })[0]; }
   host.querySelectorAll("[data-dm]").forEach(function(el){ el.addEventListener("change", function(){
     var x = find(this.getAttribute("data-dm")), f = this.getAttribute("data-f");
@@ -6162,11 +6188,6 @@ RENDER.STAFF.docmaster = function(){
     m.items = m.items.filter(function(y){ return y !== x; });
     Object.keys(m.byInst).forEach(function(k){ m.byInst[k] = m.byInst[k].filter(function(id){ return id !== x.id; }); });
     renderMain(); toast("삭제했습니다.");
-  }); });
-  host.querySelectorAll("[data-bi]").forEach(function(c){ c.addEventListener("change", function(){
-    var p = this.getAttribute("data-bi").split("|"), arr = m.byInst[p[0]] = m.byInst[p[0]] || [];
-    if (this.checked){ if (arr.indexOf(p[1]) < 0) arr.push(p[1]); } else m.byInst[p[0]] = arr.filter(function(id){ return id !== p[1]; });
-    renderMain(); toast("저장했습니다.");
   }); });
   $("dmAdd").addEventListener("click", function(){
     var nm = $("dmName").value.trim(); if (!nm){ toast("서류명을 입력하세요."); return; }
@@ -6194,7 +6215,7 @@ function instDocMaster(){
 function instDocNextCode(dir){ var n = instDocMaster().items.filter(function(x){ return x.dir === dir; }).reduce(function(m, x){ var k = parseInt(String(x.code).replace(/\D/g, ""), 10); return isNaN(k) ? m : Math.max(m, k); }, 0); return dir + "-" + String(n + 1).padStart(2, "0"); }
 function instDocsFor(iid, dir){
   var m = instDocMaster(), sel = m.byInst[iid] || [];
-  return m.items.filter(function(x){ return x.active && x.dir === dir && (x.common || sel.indexOf(x.id) >= 0); }).sort(function(a, b){ return String(a.code).localeCompare(String(b.code)); });
+  return miApply(m, iid, m.items.filter(function(x){ return x.active && x.dir === dir && (x.common || sel.indexOf(x.id) >= 0); })).sort(function(a, b){ return String(a.code).localeCompare(String(b.code)); });
 }
 function instDocSt(iid, id){ DB.instDocStatus = DB.instDocStatus || {}; var o = DB.instDocStatus[iid] = DB.instDocStatus[iid] || {}; return o[id] = o[id] || {}; }
 var IDS = { TODO:["준비 중","b-slate"], SENT:["발송 완료","b-teal"], WAIT:["미수신","b-slate"], RECEIVED:["수신 완료","b-teal"], REJECTED:["보완 요청","b-rose"] };
@@ -6218,6 +6239,80 @@ async function adminStore(f){
   return Object.assign(file, { bucket:"uploads", storage_path:p2 });
 }
 
+/* ---------- 양식 파일: 행정이 올린 서류 양식을 학생이 [제출 서류] 화면에서 내려받음 ----------
+ *  글 목록: 공용 문서 shared_docs 'formPosts' (학생도 읽음)
+ *  첨부 파일: 저장소 prep-materials 의 prep/forms/… (로그인한 모두가 내려받을 수 있는 저장소)
+ *            저장소를 못 쓰면 공용 문서 'file:<id>' 에 파일 내용을 넣어 보관 (5MB 이하) — 목록을 불러올 때는 빼고, 내려받을 때만 가져옴 */
+var FP = { pending:[], busy:false, view:null, compose:false, msg:null };
+var FP_INLINE_MAX = 5 * 1024 * 1024;
+function fpDoc(){ if (!DB.formPosts || typeof DB.formPosts !== "object" || !DB.formPosts.posts) DB.formPosts = { posts:{} }; return DB.formPosts; }
+function fpB64(f){ return new Promise(function(ok, no){ var r = new FileReader(); r.onload = function(){ ok(String(r.result).split(",")[1] || ""); }; r.onerror = function(){ no(new Error("파일을 읽지 못했습니다.")); }; r.readAsDataURL(f); }); }
+async function formStore(f){
+  var ext = pfExt(f.name); if (ext === "jpeg") ext = "jpg";
+  var d = new Date(), stamp = d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");
+  var uid = pfUuid(), type = PF.MATERIAL.exts[pfExt(f.name)];
+  var file = { file_name:f.name.slice(0, 200), file_size:f.size, file_type:type };
+  if (!REAL) return Object.assign(file, { bucket:"demo", storage_path:"demo/" + uid, url:URL.createObjectURL(f) });
+  var path = "prep/forms/" + stamp + "_" + uid + "." + ext;
+  var r = await SB.storage.from("prep-materials").upload(path, sbTyped(f, type), { contentType:type, upsert:false });
+  if (!r.error) return Object.assign(file, { bucket:"prep-materials", storage_path:path });
+  var first = r.error;
+  if (f.size > FP_INLINE_MAX) throw new Error("파일 저장소를 쓸 수 없어 5MB 이하 파일만 올릴 수 있습니다 (" + pfFmt(f.size) + "). [저장소 오류: " + pfErr(first) + "]");
+  var key = "file:" + uid, b64 = await fpB64(f);
+  var up = await SB.from("shared_docs").upsert({ key:key, scope:"public", data:{ name:file.file_name, type:type, size:f.size, b64:b64 }, updated_at:new Date().toISOString(), updated_by:RS.me.id });
+  if (up.error) throw new Error(pfErr(first) + " / 예비 보관도 실패: " + pfErr(up.error));
+  return Object.assign(file, { bucket:"inline", storage_path:key });
+}
+async function formRemoveFile(f){
+  if (!REAL || !f || !f.storage_path || f.bucket === "demo") return;
+  if (f.bucket === "inline"){ var u = await SB.from("shared_docs").update({ data:{ deleted:true }, updated_at:new Date().toISOString() }).eq("key", f.storage_path); if (u.error) console.warn("양식 파일 삭제 실패:", u.error.message); return; }
+  var rm = await SB.storage.from(f.bucket).remove([f.storage_path]);
+  if (rm.error) console.warn("양식 파일 삭제 실패:", rm.error.message);
+}
+async function formOpen(f, download){
+  if (!f) return;
+  if (REAL && f.bucket === "inline"){
+    var r = await SB.from("shared_docs").select("data").eq("key", f.storage_path).maybeSingle();
+    if (r.error) throw r.error;
+    var dd = r.data && r.data.data; if (!dd || !dd.b64) throw new Error("파일을 찾지 못했습니다 (삭제되었을 수 있습니다).");
+    var bin = atob(dd.b64), arr = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([arr], { type:dd.type || f.file_type || "application/octet-stream" }));
+    var a = document.createElement("a"); a.href = url; a.rel = "noopener";
+    if (download) a.download = f.file_name; else a.target = "_blank";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    return;
+  }
+  return afOpen(f, download);
+}
+/* 기타 › 서류 관리: 기타 서류 · 양식 파일 · 서식 관리표를 탭으로 */
+RENDER.STAFF.docAdmin = function(){
+  var tabs = [["docInst","기타 서류"],["docFormFiles","양식 파일"],["docForms","서식 관리표 (전체)"]];
+  if (!tabs.some(function(t){ return t[0] === UI.daTab; })) UI.daTab = "docInst";
+  RENDER.STAFF[UI.daTab]();
+  var hd = document.querySelector("#main .page-hd h2"); if (hd) hd.textContent = "서류 관리";
+  var hb = pbody(); if (hb) hb.insertBefore(tabsBar(tabs, UI.daTab, function(t){ UI.daTab = t; renderMain(); }), hb.firstChild);
+};
+RENDER.STAFF.docFormFiles = function(){
+  postBoard({ st:FP, doc:fpDoc, store:formStore, remove:formRemoveFile, open:formOpen, legacy:false, title:"양식 파일", ph:"예) 개인정보 보호 서약서 양식",
+    sub:"학생이 내려받아 작성할 서류 양식을 올립니다. 올린 글과 파일은 학생 [제출 서류] 화면의 '양식 파일'에 바로 보입니다. 작성자와 작성 시점은 자동으로 기록됩니다." });
+};
+/* 학생 화면: 양식 파일 목록 (최근 글 위) */
+function formFilesCard(){
+  var list = apList(fpDoc());
+  var c = h(card("양식 파일", list.length + "건",
+    '<p class="tiny" style="margin-bottom:8px">학교 행정이 올린 서류 양식입니다. 내려받아 작성한 뒤 위 표의 해당 서류에 올려 주세요.</p>' +
+    (list.length ? '<div class="fp-list">' + list.map(function(p){
+      return '<div class="fp-it"><div class="fp-hd"><b>'+esc(p.title)+'</b><span class="tiny">'+esc(apWhen(p.createdAt))+(p.authorName ? ' · '+esc(p.authorName) : '')+'</span></div>' +
+        (p.body ? '<div class="fp-body">'+esc(p.body)+'</div>' : '') +
+        ((p.files||[]).length ? '<div class="fp-files">' + p.files.map(function(f, i){ return '<button type="button" class="btn btn-sm btn-out" data-fpdl="'+esc(p.id)+'|'+i+'">⬇ '+esc(f.file_name)+' <span class="tiny">'+pfFmt(f.file_size)+'</span></button>'; }).join("") + '</div>' : '') + '</div>';
+    }).join("") + '</div>' : '<p class="tiny">아직 올라온 양식 파일이 없습니다.</p>')));
+  c.querySelectorAll("[data-fpdl]").forEach(function(b){ b.addEventListener("click", function(){
+    var q = this.getAttribute("data-fpdl").split("|"), post = fpDoc().posts[q[0]], f = post && (post.files||[])[+q[1]];
+    formOpen(f, true).catch(function(e){ toast("내려받지 못했습니다: " + pfErr(e)); });
+  }); });
+  return c;
+}
+
 /* ---------- 학교 행정 · 기관별 현황 ---------- */
 RENDER.STAFF.instView = function(){
   var insts = apxInsts().slice().sort(function(a, b){ return String(a.name).localeCompare(String(b.name), "ko"); });
@@ -6225,9 +6320,9 @@ RENDER.STAFF.instView = function(){
   UI.ivF = UI.ivF || "active";
   var list = insts.filter(function(x){ return UI.ivF === "all" || x.open || cnt[x.id]; });
   if (!list.some(function(x){ return x.id === UI.ivSel; })) UI.ivSel = list.length ? list[0].id : null;
-  pageShell("기관별 현황", "실습기관마다 기관 정보 · 배정 학생 · 학교가 보낼 서류 · 기관에서 받을 서류를 한 화면에서 관리합니다.", "");
+  pageShell("기관별 현황", "왼쪽 기관 리스트에서 기관을 고르면 기관 정보 · 배정 학생 · 학생 제출 서류 · 학교 → 기관 서류 · 기관 → 학교 서류를 관리할 수 있습니다.", "");
   var host = pbody();
-  var side = '<div class="iv-f">' + [["active","모집·배정 기관"],["all","전체"]].map(function(f){ return '<button type="button" class="btn btn-sm '+(UI.ivF===f[0]?'btn-teal':'btn-out')+'" data-ivf="'+f[0]+'">'+f[1]+'</button>'; }).join("") + '</div>' +
+  var side = (staffCanEdit() ? '<button type="button" class="btn btn-sm btn-grad iv-new" id="ivNew">+ 기관 등록</button>' : '') + '<div class="iv-f">' + [["active","모집·배정 기관"],["all","전체"]].map(function(f){ return '<button type="button" class="btn btn-sm '+(UI.ivF===f[0]?'btn-teal':'btn-out')+'" data-ivf="'+f[0]+'">'+f[1]+'</button>'; }).join("") + '</div>' +
     list.map(function(x){
       var pg = instDocProgress(x.id), done = pg.outDone + pg.inDone, tot = pg.out + pg.inn;
       return '<button type="button" class="iv-item'+(x.id===UI.ivSel?' on':'')+'" data-iv="'+esc(x.id)+'"><b>'+esc(x.name)+'</b><span class="tiny">학생 '+(cnt[x.id]||0)+'명 · 서류 '+done+'/'+tot+'</span></button>';
@@ -6235,29 +6330,138 @@ RENDER.STAFF.instView = function(){
   var lay = h('<div class="iv-lay"><aside class="card iv-side">'+(side || '<p class="tiny" style="padding:12px">기관이 없습니다.</p>')+'</aside><div id="ivMain"></div></div>');
   host.appendChild(lay);
   lay.querySelectorAll("[data-ivf]").forEach(function(b){ b.addEventListener("click", function(){ UI.ivF = this.getAttribute("data-ivf"); renderMain(); }); });
-  lay.querySelectorAll("[data-iv]").forEach(function(b){ b.addEventListener("click", function(){ UI.ivSel = this.getAttribute("data-iv"); renderMain(); }); });
+  var ivn = $("ivNew"); if (ivn) ivn.addEventListener("click", function(){ UI.ivF = "all"; instForm(null); });
+  lay.querySelectorAll("[data-iv]").forEach(function(b){ b.addEventListener("click", function(){ UI.ivSel = this.getAttribute("data-iv"); UI.ivEd = null; renderMain(); }); });
   var it = insts.filter(function(x){ return x.id === UI.ivSel; })[0], main = $("ivMain");
   if (!it){ main.appendChild(h('<div class="card"><div class="card-bd" style="padding:16px"><p class="tiny">왼쪽에서 기관을 고르세요.</p></div></div>')); return; }
+  var IVT = [["info","기관 정보"],["stud","배정 학생"],["sdocs","학생 제출 서류"],["out","학교 → 기관 서류"],["in","기관 → 학교 서류"]];
+  if (!IVT.some(function(t){ return t[0] === UI.ivTab; })) UI.ivTab = "info";
+  main.appendChild(h('<h3 class="iv-title">'+esc(it.name)+'</h3>'));
+  main.appendChild(tabsBar(IVT, UI.ivTab, function(t){ UI.ivTab = t; UI.ivEd = null; renderMain(); }));
+  var TAB = UI.ivTab;
   var dash = '<span class="tiny" style="color:#A1521B">미입력</span>';
-  main.appendChild(h(card(it.name, esc(it.grp||"기타") + (it.open ? " · 모집 중 · 정원 " + (Number(it.cap)||0) + "명" : " · 모집 안 함"),
+  if (TAB === "info") main.appendChild(h(card(it.name, esc(it.grp||"기타") + (it.open ? " · 모집 중 · 정원 " + (Number(it.cap)||0) + "명" : " · 모집 안 함"),
     '<dl class="iv-info"><div><dt>주소</dt><dd>'+(it.addr ? esc(it.addr) : dash)+'</dd></div><div><dt>대표번호</dt><dd>'+(it.tel ? esc(it.tel) : dash)+'</dd></div><div><dt>이메일</dt><dd>'+(it.email ? esc(it.email) : dash)+'</dd></div>' +
-    (it.cond ? '<div><dt>필수 조건</dt><dd>'+esc(it.cond)+'</dd></div>' : '') + '</dl><div class="btnrow"><button type="button" class="btn btn-sm btn-out" id="ivEdit">기관 정보 수정</button></div>')));
-  $("ivEdit").addEventListener("click", function(){ instForm(it.id); });
+    (it.cond ? '<div><dt>필수 조건</dt><dd>'+esc(it.cond)+'</dd></div>' : '') + '</dl>' + (staffCanEdit() ? '<div class="btnrow"><button type="button" class="btn btn-sm btn-out" id="ivEdit">기관 정보 수정</button></div>' : '') +
+    '<p class="tiny" style="margin-top:6px">모집 · 정원 · 필수 조건은 지도교수 [실습기관 관리]에서 정합니다.</p>')));
+  var ive = $("ivEdit"); if (ive) ive.addEventListener("click", function(){ instForm(it.id); });
   // 배정 학생
   var studs = DB.students.filter(function(s){ return s.institutionId === it.id; });
-  main.appendChild(h(card("배정 학생", studs.length + "명", studs.length ? tbl(["학생명","학번","학생 제출 서류"], studs.map(function(s){
-    var req = reqDocsFor(s.id), d = docDone(s.id);
-    return '<tr><td><b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.no)+'</td><td>'+(req.length && d === req.length ? '<span class="badge b-teal">모두 확인 ('+d+'/'+req.length+')</span>' : '<span class="badge b-amber">'+d+' / '+req.length+' 확인</span>')+'</td></tr>';
-  }).join("")) : '<p class="tiny">이 기관에 배정된 학생이 없습니다.</p>')));
+  if (TAB === "stud"){
+    var pool = USERS || SEED_USERS, ro = !staffCanEdit() ? ' disabled' : '';
+    var popt = function(role, cur){
+      var arr = pool.filter(function(u){ return u.role === role; }).sort(function(a, b){ return ((b.institutionId === it.id) - (a.institutionId === it.id)) || String(a.name).localeCompare(String(b.name), "ko"); });
+      return '<option value="">선택 안 함</option>' + arr.map(function(u){ return '<option value="'+u.id+'"'+(u.id===cur?' selected':'')+'>'+esc(u.name)+(role !== "FACULTY" && u.institutionId ? ' · '+esc(instName(u.institutionId)) : '')+'</option>'; }).join("");
+    };
+    main.appendChild(h(card("배정 학생", studs.length + "명", studs.length ? '<p class="tiny" style="margin-bottom:8px">학생의 실습기관은 지도교수가 [선발 평가표]에서 확정한 배정 결과로 자동 연결됩니다. 지도 교수 · 현장실습 교육 책임자 · 담당자 칸을 바꾸면 바로 저장됩니다.</p>' +
+      tbl(["학생명","학번","지도 교수","현장실습 교육 책임자","현장실습 교육 담당자","제출 서류"], studs.map(function(s){
+        var pl = DB.placement[s.id] || {}, req = reqDocsFor(s.id), d = docDone(s.id);
+        return '<tr><td><b>'+esc(s.name)+'</b></td><td class="mono">'+esc(s.no)+'</td>' +
+          '<td><select class="cell" data-sid="'+s.id+'" data-pl="facultyId"'+ro+'>'+popt("FACULTY", pl.facultyId)+'</select></td>' +
+          '<td><select class="cell" data-sid="'+s.id+'" data-pl="leadId"'+ro+'>'+popt("LEAD", pl.leadId)+'</select></td>' +
+          '<td><select class="cell" data-sid="'+s.id+'" data-pl="fieldId"'+ro+'>'+popt("FIELD", pl.fieldId)+'</select></td>' +
+          '<td>'+(req.length && d === req.length ? '<span class="badge b-teal">모두 확인 ('+d+'/'+req.length+')</span>' : '<span class="badge b-amber">'+d+' / '+req.length+' 확인</span>')+'</td></tr>';
+      }).join("")) : '<p class="tiny">이 기관에 배정된 학생이 없습니다.</p>')));
+    main.querySelectorAll("[data-pl]").forEach(function(sel){ sel.addEventListener("change", function(){
+      var sid = this.getAttribute("data-sid"); DB.placement[sid] = DB.placement[sid] || {}; DB.placement[sid][this.getAttribute("data-pl")] = this.value;
+      toast("배정을 저장했습니다."); renderMain();
+    }); });
+  }
+  var canEdit = staffCanEdit();
+  /* 서류 이름 칸: 보통은 이름 + [수정][삭제], 수정 중이면 입력 칸 */
+  function nameCell(kind, d){
+    var key = kind + "|" + d.id;
+    if (canEdit && UI.ivEd === key)
+      return '<div class="iv-ed"><input class="cell" id="ivEdName" value="'+esc(d.name)+'" maxlength="100" aria-label="서류명"><input class="cell" id="ivEdDesc" value="'+esc(d.desc||"")+'" maxlength="200" placeholder="안내 (선택)" aria-label="안내">' +
+        '<span><button type="button" class="btn btn-sm btn-grad" data-ivsave="'+esc(key)+'">저장</button> <button type="button" class="btn btn-sm btn-out" data-ivcancel="1">취소</button></span></div>';
+    return esc(d.name) + (d.common ? ' <span class="tiny mu-t">· 공통</span>' : '') + (d.desc ? '<div class="tiny">'+esc(d.desc)+'</div>' : '') +
+      (canEdit ? '<div class="iv-ea"><button type="button" class="lnk-b" data-ived="'+esc(key)+'">수정</button><button type="button" class="lnk-b iv-del" data-ivdel="'+esc(key)+'">삭제</button></div>' : '');
+  }
+  function addRow(kind, ph){
+    // 마스터 코드에 있는 '기관별 지정' 서류 중 이 기관에 아직 없는 것
+    var m = kind === "STU" ? docMaster() : instDocMaster(), have = (m.byInst[it.id] || []);
+    var avail = m.items.filter(function(x){ return x.active && !x.common && (kind === "STU" || x.dir === kind) && have.indexOf(x.id) < 0; });
+    var ex = (m.excl || {})[it.id] || [], back = m.items.filter(function(x){ return x.active && x.common && (kind === "STU" || x.dir === kind) && ex.indexOf(x.id) >= 0; });
+    var pick = (avail.length || back.length) ? '<select class="cell" id="ivPick_'+kind+'" aria-label="마스터 코드에서 고르기"><option value="">마스터 코드에서 고르기…</option>' +
+      avail.concat(back).map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.code+" "+x.name)+(x.common ? " (뺀 공통 서류 되살리기)" : "")+'</option>'; }).join("") + '</select>' : '';
+    return canEdit ? '<div class="toolbar iv-add">'+pick+'<input class="cell" id="ivAddN_'+kind+'" maxlength="100" placeholder="'+ph+'" style="flex:2;max-width:none"><input class="cell" id="ivAddD_'+kind+'" maxlength="200" placeholder="안내 (선택)" style="flex:1;max-width:none"><button type="button" class="btn btn-sm btn-grad" data-ivadd="'+kind+'">+ 서류 추가</button></div>' : '';
+  }
+  // 이 기관 학생이 낼 서류 (학생 [제출 서류] 화면에는 배정된 기관의 서류만 보임)
+  var sdocs = reqDocsForInst(it.id);
+  if (TAB === "sdocs"){
+  var srows = sdocs.map(function(d){
+    var done = studs.filter(function(s){ return docStatus(s.id, d.id) === "VERIFIED"; }).length, tf = docTpl(it.id, d.id);
+    return '<tr><td class="mono tiny">'+esc(d.code)+'</td><td>'+nameCell("STU", d)+'</td>' +
+      '<td>'+(tf ? '<button type="button" class="lnk-b" data-tplv="'+esc(d.id)+'">📄 '+esc(tf.file_name)+'</button>' : '<span class="tiny mu-t">양식 없음</span>') +
+        (canEdit ? '<span class="btn btn-sm btn-out iv-up" style="position:relative;overflow:hidden;margin-left:6px">'+(tf ? '바꾸기' : '양식 올리기')+'<input type="file" data-tplu="'+esc(d.id)+'" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span>' + (tf ? ' <button type="button" class="lnk-b iv-del" data-tplx="'+esc(d.id)+'">양식 삭제</button>' : '') : '') + '</td>' +
+      '<td class="num">'+(studs.length ? done + ' / ' + studs.length + '명 확인' : '-')+'</td></tr>';
+  }).join("");
+  main.appendChild(h(card("① 제출할 서류 · 양식 파일", sdocs.length + "종",
+    '<p class="tiny" style="margin-bottom:8px">'+esc(it.name)+'에 배정된 학생은 <b>아래 서류만</b> [제출 서류] 화면에서 봅니다. <b>양식 파일</b>을 올리면 학생이 내려받아 작성한 뒤 제출합니다.</p>' +
+    (sdocs.length ? tbl(["코드","서류","양식 파일 (학생이 내려받음)","제출 확인"], srows) : '<p class="tiny">이 기관 학생이 낼 서류가 없습니다.</p>') +
+    addRow("STU", "학생이 낼 서류명 (예: 기관 보안서약서)"))));
+  // ② 학생별 제출 현황 — 확인(승인) · 반려 · 기관 폴더로 저장
+  var nFiles = studs.reduce(function(t, s){ return t + reqDocsFor(s.id).filter(function(rd){ var st = docStatus(s.id, rd.id); return (st === "SUBMITTED" || st === "VERIFIED") && docFileBtn(s.id, rd.id); }).length; }, 0);
+  var cat = { done:0, todo:0, missing:0 }; studs.forEach(function(s){ var c = sdCat(s.id); if (cat[c] !== undefined) cat[c]++; });
+  var strows = studs.map(function(s){
+    var notes = (DB.studentExtra[s.id] || {}).docNotes || {};
+    var files = reqDocsFor(s.id).map(function(rd){
+      var st = docStatus(s.id, rd.id), f = docFileBtn(s.id, rd.id);
+      var nf = REAL && (st === "SUBMITTED" || st === "VERIFIED") ? '<span class="sd-warn">⚠ 서버에 파일 없음 · 다시 올려야 함</span>' : '<span class="mu-t">파일 없음</span>';
+      var va = st === "VERIFIED" ? docVerifiedAt(s.id, rd.id) : null;
+      return '<div class="sd-row"><span class="sd-dn">'+esc(rd.name)+'</span><span class="sd-fn">'+(f || nf)+'</span>'+badge(DOC_ST, st) + (va && va.at ? '<span class="tiny">'+esc(ymd(new Date(va.at)))+'</span>' : '') +
+        (st === "REJECTED" && notes[rd.id] ? '<span class="tiny">사유: '+esc(notes[rd.id])+'</span>' : '') +
+        (canEdit && st === "SUBMITTED" ? '<span class="sd-act"><button type="button" class="btn btn-sm btn-teal" data-vd="'+esc(s.id)+'|'+esc(rd.id)+'|VERIFIED">승인</button> <button type="button" class="btn btn-sm btn-danger" data-vd="'+esc(s.id)+'|'+esc(rd.id)+'|REJECTED">반려</button></span>' : '') +
+        (canEdit && st === "VERIFIED" ? '<span class="sd-act"><button type="button" class="btn btn-sm btn-out" data-vd="'+esc(s.id)+'|'+esc(rd.id)+'|SUBMITTED">승인 취소</button></span>' : '') + '</div>';
+    }).join("");
+    return '<tr><td><b>'+esc(s.name)+'</b><div class="tiny mono">'+esc(s.no)+'</div></td><td><div class="sd-list">'+(files || '<span class="tiny">제출할 서류가 없습니다.</span>')+'</div></td></tr>';
+  }).join("");
+  main.appendChild(h(card("② 학생별 제출 현황", "승인 완료 " + cat.done + " · 확인 대기 " + cat.todo + " · 미완료 " + cat.missing + "명 · 제출 파일 " + nFiles + "개",
+    (studs.length ? '<div class="toolbar" style="margin-bottom:8px"><span class="tiny">선택한 위치에 '+esc(it.name)+' 폴더 → 학생명_학번 폴더 → 제출 서류 (Chrome · Edge)</span><span style="flex:1"></span>' +
+      (REAL ? '<button type="button" class="btn btn-sm btn-out" id="ivSdReload">새로고침</button>' : '') +
+      '<button type="button" class="btn btn-sm btn-out" data-zip="'+esc(it.id)+'" data-zipv="1">승인 완료 서류만 폴더로 저장</button><button type="button" class="btn btn-sm btn-grad" data-zip="'+esc(it.id)+'">전체 폴더로 저장</button></div>' +
+      tbl(["학생","제출 서류 · 승인"], strows) : '<p class="tiny">이 기관에 배정된 학생이 없습니다.</p>'))));
+  main.querySelectorAll("[data-zip]").forEach(function(b){ b.addEventListener("click", function(){ instFolder(this.getAttribute("data-zip"), this, this.hasAttribute("data-zipv")); }); });
+  var sdr = $("ivSdReload"); if (sdr) sdr.addEventListener("click", function(){ sdr.disabled = true; (RS.me && RS.me.role === "STAFF" ? staffDocsLoad() : Promise.resolve()).then(function(){ renderMain(); toast("최신 서류 현황을 불러왔습니다."); }).catch(function(e){ sdr.disabled = false; toast("불러오지 못했습니다: " + e.message); }); });
+  main.querySelectorAll("[data-vd]").forEach(function(b){ b.addEventListener("click", function(){
+    var p = this.getAttribute("data-vd").split("|"), note = "";
+    if (p[2] === "REJECTED"){ note = window.prompt("반려 사유를 적어 주세요. (학생 화면에 표시됩니다)", ""); if (note == null) return; note = note.trim(); }
+    setDocStatus(p[0], p[1], p[2], note).then(function(){
+      renderMain(); toast(p[2] === "VERIFIED" ? "승인했습니다." : p[2] === "REJECTED" ? "반려했습니다. 학생이 다시 올려야 합니다." : "승인을 취소했습니다.");
+    }).catch(function(e){ renderMain(); toast("저장하지 못했습니다: " + ((e && e.message) || e)); });
+  }); });
+  // 양식 파일 올리기 · 열기 · 삭제
+  main.querySelectorAll("[data-tplv]").forEach(function(b){ b.addEventListener("click", function(){ formOpen(docTpl(it.id, this.getAttribute("data-tplv")), true).catch(function(e){ toast("열지 못했습니다: " + pfErr(e)); }); }); });
+  main.querySelectorAll("[data-tplu]").forEach(function(inp){ inp.addEventListener("change", async function(){
+    var f = this.files && this.files[0], id = this.getAttribute("data-tplu"); if (!f) return;
+    var bad = await pfCheck("MATERIAL", f); if (bad){ toast(f.name + ": " + bad); this.value = ""; return; }
+    toast("양식을 올리는 중… " + f.name);
+    try {
+      var stored = await formStore(f), old = docTpl(it.id, id);
+      setDocTpl(it.id, id, Object.assign(stored, { at:new Date().toISOString(), by:(REAL && RS.me ? RS.me.name : SESSION.name) }));
+      if (REAL){ await realSave(); if (RS.err) throw new Error(RS.err); }
+      if (old) formRemoveFile(old);
+      renderMain(); toast("양식 파일을 올렸습니다. 학생이 바로 내려받을 수 있습니다: " + f.name);
+    } catch (e){ toast("양식을 올리지 못했습니다: " + pfErr(e)); }
+  }); });
+  main.querySelectorAll("[data-tplx]").forEach(function(b){ b.addEventListener("click", async function(){
+    var id = this.getAttribute("data-tplx"), old = docTpl(it.id, id); if (!old) return;
+    if (!window.confirm("양식 파일 ‘" + old.file_name + "’을 삭제할까요? 학생 화면에서도 빠집니다.")) return;
+    setDocTpl(it.id, id, null);
+    if (REAL){ await realSave(); if (RS.err){ setDocTpl(it.id, id, old); toast("삭제하지 못했습니다: " + RS.err); return; } }
+    formRemoveFile(old); renderMain(); toast("양식 파일을 삭제했습니다.");
+  }); });
+  }
   // 보낼 서류 · 받을 서류
   [["OUT","학교 → 기관 · 보낼 서류"],["IN","기관 → 학교 · 받을 서류"]].forEach(function(g){
+    if (TAB !== g[0].toLowerCase()) return;
     var docs = instDocsFor(it.id, g[0]);
     var rows = docs.map(function(d){
       var st = instDocSt(it.id, d.id), cur = st.st || (g[0] === "OUT" ? "TODO" : "WAIT"), f = st.file;
       var act = g[0] === "OUT"
         ? (cur === "SENT" ? '<button type="button" class="btn btn-sm btn-out" data-ids="'+d.id+'|TODO">발송 취소</button>' : '<button type="button" class="btn btn-sm btn-teal" data-ids="'+d.id+'|SENT">발송 완료</button>')
         : (cur === "RECEIVED" ? '<button type="button" class="btn btn-sm btn-out" data-ids="'+d.id+'|WAIT">수신 취소</button>' : '<button type="button" class="btn btn-sm btn-teal" data-ids="'+d.id+'|RECEIVED">수신 완료</button> <button type="button" class="btn btn-sm btn-danger" data-ids="'+d.id+'|REJECTED">보완 요청</button>');
-      return '<tr><td class="mono tiny">'+esc(d.code)+'</td><td>'+esc(d.name)+(d.desc?'<div class="tiny">'+esc(d.desc)+'</div>':'')+'</td><td>'+badge(IDS, cur)+(st.note && cur === "REJECTED" ? '<div class="tiny">'+esc(st.note)+'</div>' : '')+'</td>' +
+      return '<tr><td class="mono tiny">'+esc(d.code)+'</td><td>'+nameCell(g[0], d)+'</td><td>'+badge(IDS, cur)+(st.note && cur === "REJECTED" ? '<div class="tiny">'+esc(st.note)+'</div>' : '')+'</td>' +
         '<td class="num tiny">'+(st.at ? esc(ymd(new Date(st.at))) : '-')+'</td>' +
         '<td>'+(f ? '<button type="button" class="lnk-b" data-idf="'+d.id+'">📄 '+esc(f.file_name)+'</button>' : '<span class="tiny mu-t">파일 없음</span>')+
           '<span class="btn btn-sm btn-out iv-up" style="position:relative;overflow:hidden;margin-left:6px">'+(f ? '바꾸기' : '파일 올리기')+'<input type="file" accept="'+PF.MATERIAL.accept+'" data-idu="'+d.id+'" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span></td>' +
@@ -6265,10 +6469,53 @@ RENDER.STAFF.instView = function(){
     }).join("");
     var pg = docs.filter(function(d){ var c = instDocSt(it.id, d.id).st; return g[0] === "OUT" ? c === "SENT" : c === "RECEIVED"; }).length;
     main.appendChild(h(card(g[1], pg + " / " + docs.length + (g[0] === "OUT" ? " 발송" : " 수신"),
-      docs.length ? tbl(["코드","서류","상태","처리일","파일","처리"], rows) : '<p class="tiny">지정된 서류가 없습니다. [제출 서류 설정 → 기관 서류]에서 추가하세요.</p>')));
+      (docs.length ? tbl(["코드","서류","상태","처리일","파일","처리"], rows) : '<p class="tiny">지정된 서류가 없습니다.'+(canEdit ? ' 아래에서 바로 추가하세요.' : '')+'</p>') +
+      addRow(g[0], g[0] === "OUT" ? "보낼 서류명 (예: 실습 지도비 청구서)" : "받을 서류명 (예: 실습 결과 보고서)"))));
   });
-  main.appendChild(h('<div class="btnrow" style="justify-content:flex-start"><button type="button" class="btn btn-sm btn-out" id="ivMaster">기관 서류 마스터 코드 설정</button></div>'));
-  $("ivMaster").addEventListener("click", function(){ UI.dmTab = "inst"; navTo("docmaster"); });
+  if (TAB === "info" || TAB === "stud") { /* 서류 탭에서만 아래 안내 · 버튼 */ }
+  else if (canEdit) main.appendChild(h('<p class="tiny" style="margin:-4px 0 10px">여기서 추가 · 수정 · 삭제한 서류는 <b>'+esc(it.name)+'에만</b> 적용됩니다. 모든 기관에 똑같이 바꾸려면 아래 [마스터 코드 설정]을 쓰세요.</p>'));
+  if (TAB !== "info" && TAB !== "stud" && navAllowed(SESSION.role, "docmaster", navGranted())){
+    main.appendChild(h('<div class="btnrow" style="justify-content:flex-start"><button type="button" class="btn btn-sm btn-out" id="ivMaster">마스터 코드 설정</button></div>'));
+    $("ivMaster").addEventListener("click", function(){ UI.ivEd = null; navTo("docmaster"); });
+  }
+  function mOf(kind){ return kind === "STU" ? docMaster() : instDocMaster(); }
+  function findM(kind, id){ return mOf(kind).items.filter(function(x){ return x.id === id; })[0]; }
+  function saved(t){ renderMain(); toast(t); }
+  main.querySelectorAll("[data-ived]").forEach(function(b){ b.addEventListener("click", function(){ UI.ivEd = this.getAttribute("data-ived"); renderMain(); var n = $("ivEdName"); if (n){ n.focus(); n.select(); } }); });
+  main.querySelectorAll("[data-ivcancel]").forEach(function(b){ b.addEventListener("click", function(){ UI.ivEd = null; renderMain(); }); });
+  main.querySelectorAll("[data-ivsave]").forEach(function(b){ b.addEventListener("click", function(){
+    var p = this.getAttribute("data-ivsave").split("|"), x = findM(p[0], p[1]), nm = $("ivEdName").value.trim(), ds = $("ivEdDesc").value.trim();
+    if (!nm){ toast("서류명을 비울 수 없습니다."); $("ivEdName").focus(); return; }
+    if (x) miRename(mOf(p[0]), it.id, x, nm, ds);
+    UI.ivEd = null; saved("서류를 수정했습니다. (" + it.name + ")");
+  }); });
+  main.querySelectorAll("[data-ivdel]").forEach(function(b){ b.addEventListener("click", function(){
+    var p = this.getAttribute("data-ivdel").split("|"), m = mOf(p[0]), x = findM(p[0], p[1]); if (!x) return;
+    var shown = (p[0] === "STU" ? reqDocsForInst(it.id) : instDocsFor(it.id, p[0])).filter(function(d){ return d.id === x.id; })[0] || x;
+    var q = "‘" + shown.name + "’ 서류를 " + it.name + "에서 삭제할까요?";
+    if (x.common) q += "\n\n모든 기관 공통 서류입니다. 이 기관에서만 빠지고 다른 기관은 그대로입니다.";
+    if (p[0] === "STU" && studs.some(function(s){ return docStatus(s.id, x.id) !== "NONE"; })) q += "\n\n이미 이 서류를 낸 학생이 있습니다. 삭제하면 학생 화면과 현황에서 빠집니다 (낸 기록은 지워지지 않음).";
+    if (!window.confirm(q)) return;
+    var keep = p[0] === "STU" && DB.students.some(function(s){ return docStatus(s.id, x.id) !== "NONE"; });
+    miRemove(m, it.id, x, keep);
+    if (UI.ivEd === p.join("|")) UI.ivEd = null;
+    saved("‘" + shown.name + "’ 서류를 " + it.name + "에서 삭제했습니다.");
+  }); });
+  main.querySelectorAll("[data-ivadd]").forEach(function(b){ b.addEventListener("click", function(){
+    var kind = this.getAttribute("data-ivadd"), nm = $("ivAddN_" + kind).value.trim(), ds = $("ivAddD_" + kind).value.trim(), pk = $("ivPick_" + kind);
+    if (pk && pk.value){   // 마스터 코드에 있는 서류를 이 기관에 붙임
+      var m = mOf(kind), x = findM(kind, pk.value);
+      if (x.common){ m.excl[it.id] = (m.excl[it.id] || []).filter(function(id){ return id !== x.id; }); }
+      else { var arr = m.byInst[it.id] = m.byInst[it.id] || []; if (arr.indexOf(x.id) < 0) arr.push(x.id); }
+      saved("‘" + x.name + "’ 서류를 " + it.name + "에 추가했습니다."); return;
+    }
+    if (!nm){ toast("서류명을 입력하거나 마스터 코드에서 고르세요."); $("ivAddN_" + kind).focus(); return; }
+    var id = (kind === "STU" ? "doc_" : "idm_") + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    if (kind === "STU") miAdd(docMaster(), it.id, { id:id, code:docNextCode(), name:nm, desc:ds, common:false, active:true });
+    else miAdd(instDocMaster(), it.id, { id:id, code:instDocNextCode(kind), name:nm, dir:kind, desc:ds, common:false, active:true });
+    saved("‘" + nm + "’ 서류를 " + it.name + "에 추가했습니다.");
+  }); });
+  main.querySelectorAll("[data-ivadd]").forEach(function(b){ var k = b.getAttribute("data-ivadd"), n = $("ivAddN_" + k); if (n) n.addEventListener("keydown", function(e){ if (e.key === "Enter") b.click(); }); });
   main.querySelectorAll("[data-ids]").forEach(function(b){ b.addEventListener("click", function(){
     var p = this.getAttribute("data-ids").split("|"), st = instDocSt(it.id, p[0]), note = "";
     if (p[1] === "REJECTED"){ note = window.prompt("기관에 요청할 보완 내용을 적어 주세요.", ""); if (note == null) return; }
@@ -6300,22 +6547,11 @@ function renderInstDocMaster(host){
       '<td><label class="switch"><input type="checkbox" data-im="'+esc(x.id)+'" data-f="active"'+(x.active?' checked':'')+'> 사용</label></td>' +
       '<td><button type="button" class="btn btn-sm btn-danger" data-imdel="'+esc(x.id)+'">삭제</button></td></tr>';
   }).join("");
-  host.appendChild(h(card("① 기관 서류 마스터 코드", m.items.length + "종 · 보낼 서류 OUT-xx / 받을 서류 IN-xx",
+  host.appendChild(h(card("기관 서류 마스터 코드", m.items.length + "종 · 보낼 서류 OUT-xx / 받을 서류 IN-xx",
     tbl(["코드","구분","서류명","안내","적용 대상","사용",""], rows) +
     '<div class="toolbar" style="margin-top:12px"><select class="cell" id="imDir"><option value="OUT">보낼 서류 (학교 → 기관)</option><option value="IN">받을 서류 (기관 → 학교)</option></select>' +
     '<input class="cell" id="imName" placeholder="새 서류명 (예: 실습 결과 보고서)" style="flex:1;max-width:none"><select class="cell" id="imCommon"><option value="1">모든 기관 공통</option><option value="0">기관별 지정</option></select>' +
-    '<button type="button" class="btn btn-sm btn-grad" id="imAdd">+ 서류 추가</button></div>' +
-    '<p class="tiny" style="margin-top:8px">더 쓰지 않을 서류는 [사용]을 끄면 기관별 현황에서 빠집니다. 삭제하면 그 서류의 처리 기록도 화면에서 사라집니다.</p>')));
-  var pick = m.items.filter(function(x){ return x.active && !x.common; });
-  var mrows = insts.map(function(it){
-    var sel = m.byInst[it.id] || [];
-    return '<tr'+(it.open?'':' class="dm-off"')+'><td><b>'+esc(it.name)+'</b><div class="tiny">'+esc(it.grp||"기타")+(it.open?'':' · 모집 안 함')+'</div></td>' +
-      pick.map(function(x){ return '<td class="dm-ck"><input type="checkbox" data-ib="'+esc(it.id)+'|'+esc(x.id)+'"'+(sel.indexOf(x.id)>=0?' checked':'')+' aria-label="'+esc(it.name)+' '+esc(x.name)+'"></td>'; }).join("") +
-      '<td class="num">보낼 '+instDocsFor(it.id, "OUT").length+' · 받을 '+instDocsFor(it.id, "IN").length+'</td></tr>';
-  }).join("");
-  host.appendChild(h(card("② 기관별 지정 서류", insts.length + "곳",
-    pick.length ? tbl(["실습기관"].concat(pick.map(function(x){ return x.code + " " + x.name; })).concat(["서류 수"]), mrows)
-      : '<p class="tiny">기관별로 지정한 서류가 없습니다. 위에서 적용 대상을 [기관별 지정]으로 한 서류를 추가하세요.</p>')));
+    '<button type="button" class="btn btn-sm btn-grad" id="imAdd">+ 서류 추가</button></div>' )));
   function find(id){ return m.items.filter(function(x){ return x.id === id; })[0]; }
   host.querySelectorAll("[data-im]").forEach(function(el){ el.addEventListener("change", function(){
     var x = find(this.getAttribute("data-im")), f = this.getAttribute("data-f");
@@ -6330,11 +6566,6 @@ function renderInstDocMaster(host){
     Object.keys(m.byInst).forEach(function(k){ m.byInst[k] = m.byInst[k].filter(function(id){ return id !== x.id; }); });
     renderMain(); toast("삭제했습니다.");
   }); });
-  host.querySelectorAll("[data-ib]").forEach(function(c){ c.addEventListener("change", function(){
-    var p = this.getAttribute("data-ib").split("|"), arr = m.byInst[p[0]] = m.byInst[p[0]] || [];
-    if (this.checked){ if (arr.indexOf(p[1]) < 0) arr.push(p[1]); } else m.byInst[p[0]] = arr.filter(function(id){ return id !== p[1]; });
-    renderMain(); toast("저장했습니다.");
-  }); });
   $("imAdd").addEventListener("click", function(){
     var nm = $("imName").value.trim(), dir = $("imDir").value; if (!nm){ toast("서류명을 입력하세요."); return; }
     m.items.push({ id:"idm_" + Date.now().toString(36), code:instDocNextCode(dir), name:nm, dir:dir, desc:"", common:$("imCommon").value === "1", active:true });
@@ -6343,17 +6574,14 @@ function renderInstDocMaster(host){
 }
 (function(){
   var base = RENDER.STAFF.docmaster;
+  /* 제출 서류 설정: 화면 제목 · 탭 없이 마스터 코드 표 두 개만 (학생 제출 서류 · 기관 서류) */
   RENDER.STAFF.docmaster = function(){
-    UI.dmTab = UI.dmTab || "student";
-    if (UI.dmTab === "inst"){
-      pageShell("제출 서류 설정", "학교가 기관에 보낼 서류(OUT)와 기관에서 받을 서류(IN)를 마스터 코드로 관리합니다. 지정한 서류는 [기관별 현황]에 나타납니다.", "");
-      var host = pbody();
-      host.appendChild(tabsBar([["student","학생 제출 서류"],["inst","기관 서류 (보낼 · 받을)"]], UI.dmTab, function(t){ UI.dmTab = t; renderMain(); }));
-      renderInstDocMaster(host);
-      return;
-    }
     base();
-    var hb = pbody(); hb.insertBefore(tabsBar([["student","학생 제출 서류"],["inst","기관 서류 (보낼 · 받을)"]], UI.dmTab, function(t){ UI.dmTab = t; renderMain(); }), hb.firstChild);
+    renderInstDocMaster(pbody());
+    var hd = document.querySelector("#main .page-hd"); if (hd) hd.remove();
+    var hb = pbody(), back = h('<div class="btnrow" style="justify-content:flex-start;margin:0 0 12px"><button type="button" class="btn btn-sm btn-out" id="dmBack">← 기관별 현황으로</button></div>');
+    hb.insertBefore(back, hb.firstChild);
+    $("dmBack").addEventListener("click", function(){ navTo("instView"); });
   };
 })();
 
@@ -6394,22 +6622,24 @@ RENDER.STAFF.docVerified = function(){ UI.sdF = "done"; navTo("docStudents"); };
 RENDER.STUDENT.docs = function(){
   var s = studentById(SESSION.studentId) || DB.students[0];
   var ex = stuExtra(s.id); ex.docs = ex.docs || {}; var notes = ex.docNotes || {};
-  var req = reqDocsFor(s.id), common = req.filter(function(x){ return x.common; }), inst = req.filter(function(x){ return !x.common; });
-  pageShell("제출 서류", "실습 전 필수 제출 서류 — 파일 업로드 후 학교 행정의 수신 확인을 받습니다.", "");
+  var req = reqDocsFor(s.id);
+  pageShell("제출 서류", "배정된 실습기관에 내야 하는 서류만 보입니다. 양식을 받아 작성해 올리면 학교 행정이 승인합니다.", "");
   var host = pbody();
   function rows(list){
     return list.map(function(rd){
       var st = ex.docs[rd.id] || "NONE";
       var up = '<span class="btn btn-sm btn-out" style="position:relative;overflow:hidden">'+(st==="REJECTED"?"다시 올리기":"파일 업로드")+'<input type="file" data-rd="'+rd.id+'" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span>';
       var act = (st==="NONE"||st==="REJECTED") ? up : st==="SUBMITTED" ? '<span class="tiny">학교 행정 확인 대기</span> <button type="button" class="btn btn-sm btn-out" data-rdcancel="'+rd.id+'">취소</button>' : '<span class="tiny">완료</span>';
-      return '<tr><td><span class="mono tiny">'+esc(rd.code)+'</span> '+esc(rd.name)+(rd.desc?'<div class="tiny">'+esc(rd.desc)+'</div>':'')+'</td><td>'+badge(DOC_ST, st)+(st==="REJECTED"&&notes[rd.id]?'<div class="tiny" style="color:#C2412D">반려 사유: '+esc(notes[rd.id])+'</div>':'')+'</td><td>'+act+'</td></tr>';
+      var tf = s.institutionId ? docTpl(s.institutionId, rd.id) : null;
+      return '<tr><td><span class="mono tiny">'+esc(rd.code)+'</span> '+esc(rd.name)+(rd.desc?'<div class="tiny">'+esc(rd.desc)+'</div>':'')+'</td><td>'+(tf ? '<button type="button" class="btn btn-sm btn-out" data-tpldl="'+esc(rd.id)+'" title="'+esc(tf.file_name)+'">⬇ 양식 받기</button>' : '<span class="tiny mu-t">-</span>')+'</td><td>'+badge(DOC_ST, st)+(st==="REJECTED"&&notes[rd.id]?'<div class="tiny" style="color:#C2412D">반려 사유: '+esc(notes[rd.id])+'</div>':'')+'</td><td>'+act+'</td></tr>';
     }).join("");
   }
-  host.appendChild(h('<div class="sumline">'+sumchip("수신 완료", docDone(s.id)+" / "+req.length+"건")+sumchip("배정 기관", s.institutionId ? instName(s.institutionId) : "배정 전")+'</div>'));
-  host.appendChild(h(card("공통 제출 서류", common.length+"건", common.length ? tbl(["서류","상태","처리"], rows(common)) : '<p class="tiny">공통 서류가 없습니다.</p>')));
-  host.appendChild(h(card("실습기관 제출 서류" + (s.institutionId ? " — " + esc(instName(s.institutionId)) : ""), inst.length+"건",
-    !s.institutionId ? '<p class="tiny">실습기관이 배정되면 그 기관이 요구하는 서류가 여기에 추가됩니다.</p>'
-      : inst.length ? tbl(["서류","상태","처리"], rows(inst)) : '<p class="tiny">배정된 실습기관이 따로 요구하는 서류가 없습니다.</p>')));
+  host.appendChild(h('<div class="sumline">'+sumchip("승인 완료", docDone(s.id)+" / "+req.length+"건")+sumchip("배정 기관", s.institutionId ? instName(s.institutionId) : "배정 전")+'</div>'));
+  host.appendChild(h(card(s.institutionId ? esc(instName(s.institutionId)) + " 제출 서류" : "제출 서류", s.institutionId ? req.length+"건" : "",
+    !s.institutionId ? '<p class="tiny">아직 실습기관이 배정되지 않았습니다. 배정되면 그 기관에 내야 하는 서류만 여기에 나타납니다.</p>'
+      : req.length ? tbl(["서류","양식","상태","처리"], rows(req)) + '<p class="tiny" style="margin-top:8px">[⬇ 양식 받기]로 양식을 내려받아 작성한 뒤 [파일 업로드]로 제출하세요. 학교 행정이 승인하면 완료됩니다.</p>' : '<p class="tiny">'+esc(instName(s.institutionId))+'에 낼 서류가 아직 등록되지 않았습니다.</p>')));
+  if (Object.keys(fpDoc().posts || {}).length) host.appendChild(formFilesCard());
+  host.querySelectorAll("[data-tpldl]").forEach(function(b){ b.addEventListener("click", function(){ formOpen(docTpl(s.institutionId, this.getAttribute("data-tpldl")), true).catch(function(e){ toast("내려받지 못했습니다: " + pfErr(e)); }); }); });
   host.querySelectorAll("[data-rd]").forEach(function(inp){
     inp.addEventListener("change", function(){
       var f=this.files&&this.files[0]; if(!f) return;
@@ -6778,7 +7008,7 @@ var SB = REAL ? window.supabase.createClient(realBaseUrl(APP_CONFIG.supabaseUrl)
 var RS = { me:null, saved:{}, savedProfiles:{}, timer:null, busy:false, pending:false, err:"", lastAt:null, files:{} };
 
 /* 공용 문서: 기관·안내서·기초 코드 등 (public = 로그인한 모든 사용자 읽기, 교수·행정·관리자 쓰기) */
-var REAL_PUBLIC = ["codes","apxInsts","handbook","guide","contacts","term","prepSessions","preEducation","reqDocList","assignments","surveyItems","instSurveyItems","evalItems","prepGate","docCats","docMaster","instDocMaster","rbac"];
+var REAL_PUBLIC = ["formPosts","codes","apxInsts","handbook","guide","contacts","term","prepSessions","preEducation","reqDocList","assignments","surveyItems","instSurveyItems","evalItems","prepGate","docCats","docMaster","instDocMaster","rbac"];
 /* 교직원 전용 문서: 선발 점수·성적·순회지도 등 */
 var REAL_STAFF = ["apxSel","grading","visits","facultyChecks","surveyNotes","documents","evaluations","instOps","evalItemsInst","instSurveys","adminFilesDoc","adminPosts","instDocStatus","docVerifyLog"];
 function realGet(key){
@@ -6793,7 +7023,7 @@ function realGet(key){
   }
 }
 /* 권한표가 서버에 저장된 뒤에 새로 생긴 화면 — [역할, 권한 키] */
-var RBAC_NEW = [["FACULTY","faculty.apply.instlist"],["FACULTY","faculty.apply.placement"],["STAFF","staff.docmaster"],["STAFF","staff.institutions"],["STAFF","staff.documents.students"],["STAFF","staff.instview"],["STAFF","staff.documents.verified"]];
+var RBAC_NEW = [["FACULTY","faculty.apply.instlist"],["FACULTY","faculty.apply.placement"],["STAFF","staff.docmaster"],["STAFF","staff.institutions"],["STAFF","staff.documents.students"],["STAFF","staff.instview"],["STAFF","staff.documents.verified"],["STAFF","staff.documents.formfiles"]];
 var RBAC_AUTO = RBAC_NEW.map(function(n){ return n[0] + ":" + n[1]; });   // 새로 설치한 사이트는 이미 켜진 상태
 function realSet(key, v){
   switch (key){
@@ -6968,7 +7198,7 @@ async function realLoad(){
     if (i.facultyId || i.leadId || i.fieldId) DB.placement[p.id] = { facultyId:i.facultyId||"", leadId:i.leadId||"", fieldId:i.fieldId||"" };
     return { id:p.id, name:p.name, no:p.student_no||"", school:(APP_CONFIG.schoolName||""), institutionId:i.institutionId||"", area:i.area||"", start:i.start||DB.term.start, end:i.end||DB.term.end };
   });
-  res = await SB.from("shared_docs").select("key,scope,data"); if (res.error) throw res.error;
+  res = await SB.from("shared_docs").select("key,scope,data").not("key", "like", "file:%"); if (res.error) throw res.error;
   (res.data||[]).forEach(function(d){ realSet(d.key, d.data); RS.saved["s:"+d.scope+":"+d.key] = realClone(d.data); });
   res = await SB.from("user_docs").select("user_id,kind,data"); if (res.error) throw res.error;
   var mine = {};

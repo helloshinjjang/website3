@@ -1417,6 +1417,7 @@ var NAV = {
   ],
   ADMIN: [
     { id:"accounts", label:"계정 관리", ic:"■" },
+    { id:"rbac", label:"계정 권한 부여", ic:"■" },
     { id:"codes", label:"기초 코드", ic:"■" },
     { id:"logs", label:"접속 로그", ic:"■" },
     { id:"backup", label:"백업", ic:"■" }
@@ -1433,8 +1434,8 @@ var NAV_PERM = {
     stats:"faculty.stats", kpi:"faculty.kpi", grades:"faculty.grades", guideadmin:"faculty.guideadmin", survey:"faculty.survey", accounts:"faculty.accounts" },
   LEAD:{ instops:"lead.instops", students:"lead.students", attend:"lead.attend", calendar:"lead.calendar", eval:"lead.eval", instsurvey:"lead.instsurvey", cert:"lead.cert" },
   FIELD:{ students:"field.students", review:"field.review" },
-  STAFF:{ home:"staff.home", institutions:"staff.institutions", placement:"staff.placement", documents:"staff.documents", docStudents:"staff.documents.students", docVerified:"staff.documents.verified", instView:"staff.instview", docAdmin:"staff.documents", docInst:"staff.documents.receive", docFormFiles:"staff.documents.formfiles", docForms:"staff.documents.forms", docmaster:"staff.docmaster", survey:"staff.survey" },
-  ADMIN:{ accounts:"admin.accounts", codes:"admin.codes", logs:"admin.logs", backup:"admin.backup" }
+  STAFF:{ home:"staff.home", institutions:"staff.institutions", placement:"staff.placement", documents:"staff.documents", docStudents:"staff.documents.students", docVerified:"staff.documents.verified", instView:"staff.instview", docAdmin:"staff.documents", docInst:"staff.documents.receive", docFormFiles:"staff.documents.formfiles", docForms:"staff.documents.forms", survey:"staff.survey" },
+  ADMIN:{ accounts:"admin.accounts", rbac:"admin.rbac", codes:"admin.codes", logs:"admin.logs", backup:"admin.backup" }
 };
 var USER_OVERRIDES = {};  // {userId: {grant:[], revoke:[]}}  — 계정 권한 부여 저장 시 반영
 function navGranted(){
@@ -1803,10 +1804,10 @@ var PERM_CATALOG = [
      { key:"staff.documents.receive", label:"기타 서류", desc:"제목 · 내용 · 첨부 파일 글 올리기 · 보기 · 삭제" },
      { key:"staff.documents.formfiles", label:"양식 파일", desc:"학생이 내려받을 서류 양식 올리기 · 삭제 (학생 [제출 서류] 화면에 표시)" },
      { key:"staff.documents.forms", label:"서식 관리표(전체)" }]},
-   { key:"staff.docmaster", label:"제출 서류 설정 (서류 마스터 코드)", desc:"공통 서류 · 실습기관별 제출 서류 지정" },
    { key:"staff.survey", label:"만족도 조사" }]},
  { key:"AREA_ADMIN", label:"시스템 관리자 화면", owner:"ADMIN", nodes:[
    { key:"admin.accounts", label:"계정 관리", entry:true },
+   { key:"admin.rbac", label:"계정 권한 부여", desc:"역할별 · 사용자별 화면 접근 권한 관리 (지도교수 화면과 같음)" },
    { key:"admin.codes", label:"기초 코드" },
    { key:"admin.logs", label:"접속 로그" },
    { key:"admin.backup", label:"백업" }]}
@@ -6320,7 +6321,7 @@ RENDER.STAFF.instView = function(){
   UI.ivF = UI.ivF || "active";
   var list = insts.filter(function(x){ return UI.ivF === "all" || x.open || cnt[x.id]; });
   if (!list.some(function(x){ return x.id === UI.ivSel; })) UI.ivSel = list.length ? list[0].id : null;
-  pageShell("기관별 현황", "왼쪽 기관 리스트에서 기관을 고르면 기관 정보 · 배정 학생 · 학생 제출 서류 · 학교 → 기관 서류 · 기관 → 학교 서류를 관리할 수 있습니다.", "");
+  pageShell("기관별 현황", "왼쪽 기관 리스트에서 기관을 고르면 기관 정보 · 배정 학생 · 학생 제출 서류 · 학교 수신 서류 · 기관 수신 서류를 관리할 수 있습니다. 서류는 기관마다 직접 추가합니다.", "");
   var host = pbody();
   var side = (staffCanEdit() ? '<button type="button" class="btn btn-sm btn-grad iv-new" id="ivNew">+ 기관 등록</button>' : '') + '<div class="iv-f">' + [["active","모집·배정 기관"],["all","전체"]].map(function(f){ return '<button type="button" class="btn btn-sm '+(UI.ivF===f[0]?'btn-teal':'btn-out')+'" data-ivf="'+f[0]+'">'+f[1]+'</button>'; }).join("") + '</div>' +
     list.map(function(x){
@@ -6334,7 +6335,7 @@ RENDER.STAFF.instView = function(){
   lay.querySelectorAll("[data-iv]").forEach(function(b){ b.addEventListener("click", function(){ UI.ivSel = this.getAttribute("data-iv"); UI.ivEd = null; renderMain(); }); });
   var it = insts.filter(function(x){ return x.id === UI.ivSel; })[0], main = $("ivMain");
   if (!it){ main.appendChild(h('<div class="card"><div class="card-bd" style="padding:16px"><p class="tiny">왼쪽에서 기관을 고르세요.</p></div></div>')); return; }
-  var IVT = [["info","기관 정보"],["stud","배정 학생"],["sdocs","학생 제출 서류"],["out","학교 → 기관 서류"],["in","기관 → 학교 서류"]];
+  var IVT = [["info","기관 정보"],["stud","배정 학생"],["sdocs","학생 제출 서류"],["in","학교 수신 서류"],["out","기관 수신 서류"]];
   if (!IVT.some(function(t){ return t[0] === UI.ivTab; })) UI.ivTab = "info";
   main.appendChild(h('<h3 class="iv-title">'+esc(it.name)+'</h3>'));
   main.appendChild(tabsBar(IVT, UI.ivTab, function(t){ UI.ivTab = t; UI.ivEd = null; renderMain(); }));
@@ -6374,31 +6375,25 @@ RENDER.STAFF.instView = function(){
     if (canEdit && UI.ivEd === key)
       return '<div class="iv-ed"><input class="cell" id="ivEdName" value="'+esc(d.name)+'" maxlength="100" aria-label="서류명"><input class="cell" id="ivEdDesc" value="'+esc(d.desc||"")+'" maxlength="200" placeholder="안내 (선택)" aria-label="안내">' +
         '<span><button type="button" class="btn btn-sm btn-grad" data-ivsave="'+esc(key)+'">저장</button> <button type="button" class="btn btn-sm btn-out" data-ivcancel="1">취소</button></span></div>';
-    return esc(d.name) + (d.common ? ' <span class="tiny mu-t">· 공통</span>' : '') + (d.desc ? '<div class="tiny">'+esc(d.desc)+'</div>' : '') +
+    return esc(d.name) + (d.desc ? '<div class="tiny">'+esc(d.desc)+'</div>' : '') +
       (canEdit ? '<div class="iv-ea"><button type="button" class="lnk-b" data-ived="'+esc(key)+'">수정</button><button type="button" class="lnk-b iv-del" data-ivdel="'+esc(key)+'">삭제</button></div>' : '');
   }
   function addRow(kind, ph){
-    // 마스터 코드에 있는 '기관별 지정' 서류 중 이 기관에 아직 없는 것
-    var m = kind === "STU" ? docMaster() : instDocMaster(), have = (m.byInst[it.id] || []);
-    var avail = m.items.filter(function(x){ return x.active && !x.common && (kind === "STU" || x.dir === kind) && have.indexOf(x.id) < 0; });
-    var ex = (m.excl || {})[it.id] || [], back = m.items.filter(function(x){ return x.active && x.common && (kind === "STU" || x.dir === kind) && ex.indexOf(x.id) >= 0; });
-    var pick = (avail.length || back.length) ? '<select class="cell" id="ivPick_'+kind+'" aria-label="마스터 코드에서 고르기"><option value="">마스터 코드에서 고르기…</option>' +
-      avail.concat(back).map(function(x){ return '<option value="'+esc(x.id)+'">'+esc(x.code+" "+x.name)+(x.common ? " (뺀 공통 서류 되살리기)" : "")+'</option>'; }).join("") + '</select>' : '';
-    return canEdit ? '<div class="toolbar iv-add">'+pick+'<input class="cell" id="ivAddN_'+kind+'" maxlength="100" placeholder="'+ph+'" style="flex:2;max-width:none"><input class="cell" id="ivAddD_'+kind+'" maxlength="200" placeholder="안내 (선택)" style="flex:1;max-width:none"><button type="button" class="btn btn-sm btn-grad" data-ivadd="'+kind+'">+ 서류 추가</button></div>' : '';
+    return canEdit ? '<div class="toolbar iv-add"><input class="cell" id="ivAddN_'+kind+'" maxlength="100" placeholder="'+ph+'" style="flex:2;max-width:none"><input class="cell" id="ivAddD_'+kind+'" maxlength="200" placeholder="안내 (선택)" style="flex:1;max-width:none"><button type="button" class="btn btn-sm btn-grad" data-ivadd="'+kind+'">+ 서류 추가</button></div>' : '';
   }
   // 이 기관 학생이 낼 서류 (학생 [제출 서류] 화면에는 배정된 기관의 서류만 보임)
   var sdocs = reqDocsForInst(it.id);
   if (TAB === "sdocs"){
   var srows = sdocs.map(function(d){
     var done = studs.filter(function(s){ return docStatus(s.id, d.id) === "VERIFIED"; }).length, tf = docTpl(it.id, d.id);
-    return '<tr><td class="mono tiny">'+esc(d.code)+'</td><td>'+nameCell("STU", d)+'</td>' +
+    return '<tr><td>'+nameCell("STU", d)+'</td>' +
       '<td>'+(tf ? '<button type="button" class="lnk-b" data-tplv="'+esc(d.id)+'">📄 '+esc(tf.file_name)+'</button>' : '<span class="tiny mu-t">양식 없음</span>') +
         (canEdit ? '<span class="btn btn-sm btn-out iv-up" style="position:relative;overflow:hidden;margin-left:6px">'+(tf ? '바꾸기' : '양식 올리기')+'<input type="file" data-tplu="'+esc(d.id)+'" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span>' + (tf ? ' <button type="button" class="lnk-b iv-del" data-tplx="'+esc(d.id)+'">양식 삭제</button>' : '') : '') + '</td>' +
       '<td class="num">'+(studs.length ? done + ' / ' + studs.length + '명 확인' : '-')+'</td></tr>';
   }).join("");
   main.appendChild(h(card("① 제출할 서류 · 양식 파일", sdocs.length + "종",
     '<p class="tiny" style="margin-bottom:8px">'+esc(it.name)+'에 배정된 학생은 <b>아래 서류만</b> [제출 서류] 화면에서 봅니다. <b>양식 파일</b>을 올리면 학생이 내려받아 작성한 뒤 제출합니다.</p>' +
-    (sdocs.length ? tbl(["코드","서류","양식 파일 (학생이 내려받음)","제출 확인"], srows) : '<p class="tiny">이 기관 학생이 낼 서류가 없습니다.</p>') +
+    (sdocs.length ? tbl(["서류","양식 파일 (학생이 내려받음)","제출 확인"], srows) : '<p class="tiny">이 기관 학생이 낼 서류가 없습니다.</p>') +
     addRow("STU", "학생이 낼 서류명 (예: 기관 보안서약서)"))));
   // ② 학생별 제출 현황 — 확인(승인) · 반려 · 기관 폴더로 저장
   var nFiles = studs.reduce(function(t, s){ return t + reqDocsFor(s.id).filter(function(rd){ var st = docStatus(s.id, rd.id); return (st === "SUBMITTED" || st === "VERIFIED") && docFileBtn(s.id, rd.id); }).length; }, 0);
@@ -6453,7 +6448,7 @@ RENDER.STAFF.instView = function(){
   }); });
   }
   // 보낼 서류 · 받을 서류
-  [["OUT","학교 → 기관 · 보낼 서류"],["IN","기관 → 학교 · 받을 서류"]].forEach(function(g){
+  [["OUT","기관 수신 서류 (학교 → 기관으로 보내는 서류)"],["IN","학교 수신 서류 (기관 → 학교로 받는 서류)"]].forEach(function(g){
     if (TAB !== g[0].toLowerCase()) return;
     var docs = instDocsFor(it.id, g[0]);
     var rows = docs.map(function(d){
@@ -6461,7 +6456,7 @@ RENDER.STAFF.instView = function(){
       var act = g[0] === "OUT"
         ? (cur === "SENT" ? '<button type="button" class="btn btn-sm btn-out" data-ids="'+d.id+'|TODO">발송 취소</button>' : '<button type="button" class="btn btn-sm btn-teal" data-ids="'+d.id+'|SENT">발송 완료</button>')
         : (cur === "RECEIVED" ? '<button type="button" class="btn btn-sm btn-out" data-ids="'+d.id+'|WAIT">수신 취소</button>' : '<button type="button" class="btn btn-sm btn-teal" data-ids="'+d.id+'|RECEIVED">수신 완료</button> <button type="button" class="btn btn-sm btn-danger" data-ids="'+d.id+'|REJECTED">보완 요청</button>');
-      return '<tr><td class="mono tiny">'+esc(d.code)+'</td><td>'+nameCell(g[0], d)+'</td><td>'+badge(IDS, cur)+(st.note && cur === "REJECTED" ? '<div class="tiny">'+esc(st.note)+'</div>' : '')+'</td>' +
+      return '<tr><td>'+nameCell(g[0], d)+'</td><td>'+badge(IDS, cur)+(st.note && cur === "REJECTED" ? '<div class="tiny">'+esc(st.note)+'</div>' : '')+'</td>' +
         '<td class="num tiny">'+(st.at ? esc(ymd(new Date(st.at))) : '-')+'</td>' +
         '<td>'+(f ? '<button type="button" class="lnk-b" data-idf="'+d.id+'">📄 '+esc(f.file_name)+'</button>' : '<span class="tiny mu-t">파일 없음</span>')+
           '<span class="btn btn-sm btn-out iv-up" style="position:relative;overflow:hidden;margin-left:6px">'+(f ? '바꾸기' : '파일 올리기')+'<input type="file" accept="'+PF.MATERIAL.accept+'" data-idu="'+d.id+'" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span></td>' +
@@ -6469,15 +6464,11 @@ RENDER.STAFF.instView = function(){
     }).join("");
     var pg = docs.filter(function(d){ var c = instDocSt(it.id, d.id).st; return g[0] === "OUT" ? c === "SENT" : c === "RECEIVED"; }).length;
     main.appendChild(h(card(g[1], pg + " / " + docs.length + (g[0] === "OUT" ? " 발송" : " 수신"),
-      (docs.length ? tbl(["코드","서류","상태","처리일","파일","처리"], rows) : '<p class="tiny">지정된 서류가 없습니다.'+(canEdit ? ' 아래에서 바로 추가하세요.' : '')+'</p>') +
-      addRow(g[0], g[0] === "OUT" ? "보낼 서류명 (예: 실습 지도비 청구서)" : "받을 서류명 (예: 실습 결과 보고서)"))));
+      (docs.length ? tbl(["서류","상태","처리일","파일","처리"], rows) : '<p class="tiny">지정된 서류가 없습니다.'+(canEdit ? ' 아래에서 바로 추가하세요.' : '')+'</p>') +
+      addRow(g[0], g[0] === "OUT" ? "기관에 보낼 서류명 (예: 현장실습 협조 요청 공문)" : "기관에서 받을 서류명 (예: 실습 수락 회신서)"))));
   });
   if (TAB === "info" || TAB === "stud") { /* 서류 탭에서만 아래 안내 · 버튼 */ }
-  else if (canEdit) main.appendChild(h('<p class="tiny" style="margin:-4px 0 10px">여기서 추가 · 수정 · 삭제한 서류는 <b>'+esc(it.name)+'에만</b> 적용됩니다. 모든 기관에 똑같이 바꾸려면 아래 [마스터 코드 설정]을 쓰세요.</p>'));
-  if (TAB !== "info" && TAB !== "stud" && navAllowed(SESSION.role, "docmaster", navGranted())){
-    main.appendChild(h('<div class="btnrow" style="justify-content:flex-start"><button type="button" class="btn btn-sm btn-out" id="ivMaster">마스터 코드 설정</button></div>'));
-    $("ivMaster").addEventListener("click", function(){ UI.ivEd = null; navTo("docmaster"); });
-  }
+  else if (canEdit) main.appendChild(h('<p class="tiny" style="margin:-4px 0 10px">여기서 추가 · 수정 · 삭제한 서류는 <b>'+esc(it.name)+'에만</b> 적용됩니다.</p>'));
   function mOf(kind){ return kind === "STU" ? docMaster() : instDocMaster(); }
   function findM(kind, id){ return mOf(kind).items.filter(function(x){ return x.id === id; })[0]; }
   function saved(t){ renderMain(); toast(t); }
@@ -6493,7 +6484,7 @@ RENDER.STAFF.instView = function(){
     var p = this.getAttribute("data-ivdel").split("|"), m = mOf(p[0]), x = findM(p[0], p[1]); if (!x) return;
     var shown = (p[0] === "STU" ? reqDocsForInst(it.id) : instDocsFor(it.id, p[0])).filter(function(d){ return d.id === x.id; })[0] || x;
     var q = "‘" + shown.name + "’ 서류를 " + it.name + "에서 삭제할까요?";
-    if (x.common) q += "\n\n모든 기관 공통 서류입니다. 이 기관에서만 빠지고 다른 기관은 그대로입니다.";
+    q += "\n\n" + it.name + "에서만 빠지고 다른 기관은 그대로입니다.";
     if (p[0] === "STU" && studs.some(function(s){ return docStatus(s.id, x.id) !== "NONE"; })) q += "\n\n이미 이 서류를 낸 학생이 있습니다. 삭제하면 학생 화면과 현황에서 빠집니다 (낸 기록은 지워지지 않음).";
     if (!window.confirm(q)) return;
     var keep = p[0] === "STU" && DB.students.some(function(s){ return docStatus(s.id, x.id) !== "NONE"; });
@@ -6502,14 +6493,8 @@ RENDER.STAFF.instView = function(){
     saved("‘" + shown.name + "’ 서류를 " + it.name + "에서 삭제했습니다.");
   }); });
   main.querySelectorAll("[data-ivadd]").forEach(function(b){ b.addEventListener("click", function(){
-    var kind = this.getAttribute("data-ivadd"), nm = $("ivAddN_" + kind).value.trim(), ds = $("ivAddD_" + kind).value.trim(), pk = $("ivPick_" + kind);
-    if (pk && pk.value){   // 마스터 코드에 있는 서류를 이 기관에 붙임
-      var m = mOf(kind), x = findM(kind, pk.value);
-      if (x.common){ m.excl[it.id] = (m.excl[it.id] || []).filter(function(id){ return id !== x.id; }); }
-      else { var arr = m.byInst[it.id] = m.byInst[it.id] || []; if (arr.indexOf(x.id) < 0) arr.push(x.id); }
-      saved("‘" + x.name + "’ 서류를 " + it.name + "에 추가했습니다."); return;
-    }
-    if (!nm){ toast("서류명을 입력하거나 마스터 코드에서 고르세요."); $("ivAddN_" + kind).focus(); return; }
+    var kind = this.getAttribute("data-ivadd"), nm = $("ivAddN_" + kind).value.trim(), ds = $("ivAddD_" + kind).value.trim();
+    if (!nm){ toast("서류명을 입력하세요."); $("ivAddN_" + kind).focus(); return; }
     var id = (kind === "STU" ? "doc_" : "idm_") + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
     if (kind === "STU") miAdd(docMaster(), it.id, { id:id, code:docNextCode(), name:nm, desc:ds, common:false, active:true });
     else miAdd(instDocMaster(), it.id, { id:id, code:instDocNextCode(kind), name:nm, dir:kind, desc:ds, common:false, active:true });
@@ -6631,7 +6616,7 @@ RENDER.STUDENT.docs = function(){
       var up = '<span class="btn btn-sm btn-out" style="position:relative;overflow:hidden">'+(st==="REJECTED"?"다시 올리기":"파일 업로드")+'<input type="file" data-rd="'+rd.id+'" style="position:absolute;inset:0;opacity:0;cursor:pointer"></span>';
       var act = (st==="NONE"||st==="REJECTED") ? up : st==="SUBMITTED" ? '<span class="tiny">학교 행정 확인 대기</span> <button type="button" class="btn btn-sm btn-out" data-rdcancel="'+rd.id+'">취소</button>' : '<span class="tiny">완료</span>';
       var tf = s.institutionId ? docTpl(s.institutionId, rd.id) : null;
-      return '<tr><td><span class="mono tiny">'+esc(rd.code)+'</span> '+esc(rd.name)+(rd.desc?'<div class="tiny">'+esc(rd.desc)+'</div>':'')+'</td><td>'+(tf ? '<button type="button" class="btn btn-sm btn-out" data-tpldl="'+esc(rd.id)+'" title="'+esc(tf.file_name)+'">⬇ 양식 받기</button>' : '<span class="tiny mu-t">-</span>')+'</td><td>'+badge(DOC_ST, st)+(st==="REJECTED"&&notes[rd.id]?'<div class="tiny" style="color:#C2412D">반려 사유: '+esc(notes[rd.id])+'</div>':'')+'</td><td>'+act+'</td></tr>';
+      return '<tr><td>'+esc(rd.name)+(rd.desc?'<div class="tiny">'+esc(rd.desc)+'</div>':'')+'</td><td>'+(tf ? '<button type="button" class="btn btn-sm btn-out" data-tpldl="'+esc(rd.id)+'" title="'+esc(tf.file_name)+'">⬇ 양식 받기</button>' : '<span class="tiny mu-t">-</span>')+'</td><td>'+badge(DOC_ST, st)+(st==="REJECTED"&&notes[rd.id]?'<div class="tiny" style="color:#C2412D">반려 사유: '+esc(notes[rd.id])+'</div>':'')+'</td><td>'+act+'</td></tr>';
     }).join("");
   }
   host.appendChild(h('<div class="sumline">'+sumchip("승인 완료", docDone(s.id)+" / "+req.length+"건")+sumchip("배정 기관", s.institutionId ? instName(s.institutionId) : "배정 전")+'</div>'));
@@ -6935,6 +6920,8 @@ function codesScreen(onlySel){
   });
 }
 RENDER.ADMIN.codes = function(){ codesScreen(false); };
+/* 계정 권한 부여 — 지도교수 화면과 같은 화면 */
+RENDER.ADMIN.rbac = function(){ RENDER.FACULTY.accounts(); };
 RENDER.FACULTY.selCodes = function(){ codesScreen(true); };
 RENDER.ADMIN.logs = function(){
   pageShell("접속 로그", "", "");
@@ -7023,7 +7010,7 @@ function realGet(key){
   }
 }
 /* 권한표가 서버에 저장된 뒤에 새로 생긴 화면 — [역할, 권한 키] */
-var RBAC_NEW = [["FACULTY","faculty.apply.instlist"],["FACULTY","faculty.apply.placement"],["STAFF","staff.docmaster"],["STAFF","staff.institutions"],["STAFF","staff.documents.students"],["STAFF","staff.instview"],["STAFF","staff.documents.verified"],["STAFF","staff.documents.formfiles"]];
+var RBAC_NEW = [["FACULTY","faculty.apply.instlist"],["FACULTY","faculty.apply.placement"],["STAFF","staff.institutions"],["STAFF","staff.documents.students"],["STAFF","staff.instview"],["STAFF","staff.documents.verified"],["STAFF","staff.documents.formfiles"],["ADMIN","admin.rbac"]];
 var RBAC_AUTO = RBAC_NEW.map(function(n){ return n[0] + ":" + n[1]; });   // 새로 설치한 사이트는 이미 켜진 상태
 function realSet(key, v){
   switch (key){

@@ -5541,12 +5541,38 @@ async function setDocStatus(sid, docId, st, note){
   if (!REAL) return;
   var r = await SB.rpc("staff_set_doc_status", { p_student:sid, p_doc:docId, p_status:st, p_note:note || "" });
   if (r.error){
-    if (!RS.staffDocsRpc && /function|does not exist|Could not find|404/i.test(r.error.message || "")) return;   // 서버 마이그레이션 전: 예전처럼 저장
-    ex.docs[docId] = prev.st; if (prev.note == null) delete ex.docNotes[docId]; else ex.docNotes[docId] = prev.note;
-    throw r.error;
+    // 서버 함수가 없거나 실패 → 학생 문서에 직접 저장 (그 학생의 기존 내용을 읽을 수 있을 때만 — 못 읽으면 덮어쓰지 않음)
+    try { await docStatusDirect(sid, docId, st, note); }
+    catch (e2){
+      ex.docs[docId] = prev.st; if (prev.note == null) delete ex.docNotes[docId]; else ex.docNotes[docId] = prev.note;
+      throw new Error("서버 함수: " + pfErr(r.error) + " / 직접 저장: " + pfErr(e2));
+    }
   }
   if (RS.saved["u:"+sid+":extra"]){ var sv = RS.saved["u:"+sid+":extra"]; sv.docs = Object.assign({}, sv.docs, ex.docs); sv.docNotes = Object.assign({}, ex.docNotes); }
 }
+async function docStatusDirect(sid, docId, st, note){
+  var r = await SB.from("user_docs").select("data").eq("user_id", sid).eq("kind", "extra").maybeSingle();
+  if (r.error) throw r.error;
+  if (!r.data || !r.data.data) throw new Error("이 학생의 제출 정보를 읽을 권한이 없습니다. Supabase에서 supabase_migration_통합_002-005.sql 을 실행해 주세요.");
+  var v = r.data.data; v.docs = Object.assign({}, v.docs); v.docNotes = Object.assign({}, v.docNotes);
+  v.docs[docId] = st; if (st === "REJECTED") v.docNotes[docId] = String(note || "").slice(0, 300); else delete v.docNotes[docId];
+  var u = await SB.from("user_docs").upsert({ user_id:sid, kind:"extra", data:v, updated_at:new Date().toISOString(), updated_by:RS.me.id });
+  if (u.error) throw u.error;
+  RS.saved["u:"+sid+":extra"] = realClone(v);
+}
+/* 화면 안 입력 창 (브라우저 기본 입력 창이 막힌 환경에서도 동작) — 취소하면 null */
+function askText(title, placeholder){
+  return new Promise(function(done){
+    var d = instModal('<h3>'+esc(title)+'</h3><div class="fld"><textarea id="askTx" rows="3" maxlength="300" placeholder="'+esc(placeholder||"")+'" style="width:100%;box-sizing:border-box;border:1px solid #D5DBDF;border-radius:8px;padding:10px;font:inherit"></textarea></div>' +
+      '<div class="pw-btns"><button type="button" class="btn btn-out" data-x>취소</button><button type="button" class="btn btn-teal" id="askOk">확인</button></div>');
+    var ok = false;
+    $("askTx").focus();
+    $("askOk").addEventListener("click", function(){ ok = true; var v = $("askTx").value.trim(); d.remove(); done(v); });
+    new MutationObserver(function(_, o){ if (!document.body.contains(d)){ o.disconnect(); if (!ok) done(null); } }).observe(document.body, { childList:true });
+  });
+}
+/* 오류를 화면에 남겨 보여 줌 (토스트는 금방 사라지므로) */
+function showErr(title, msg){ instModal('<h3>'+esc(title)+'</h3><p style="white-space:pre-wrap;line-height:1.6;font-size:13px">'+esc(msg)+'</p><div class="pw-btns"><button type="button" class="btn btn-teal" data-x>확인</button></div>'); }
 function zipSafe(s){ return String(s || "").replace(/[\\\/:*?"<>|\u0000-\u001f]+/g, "_").replace(/^[\s.]+|[\s.]+$/g, "").slice(0, 120) || "이름없음"; }
 var JSZIP_SRC = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
 /* 기관별 ZIP: 기관명/학생명_학번/원본파일명 — 그 기관에 배정된 학생의 제출(확인 대기 · 수신 완료) 서류만 */
@@ -5875,7 +5901,7 @@ RENDER.STAFF.docStudents = function(){
   host.querySelectorAll("[data-zip]").forEach(function(b){ b.addEventListener("click", function(){ instFolder(this.getAttribute("data-zip"), this, this.hasAttribute("data-zipv")); }); });
   host.querySelectorAll("[data-vd]").forEach(function(b){ b.addEventListener("click", function(){
     var p = this.getAttribute("data-vd").split("|"), note = "";
-    if (p[2] === "REJECTED"){ note = window.prompt("반려 사유를 적어 주세요. (학생 화면에 표시됩니다)", ""); if (note == null) return; note = note.trim(); }
+    if (p[2] === "REJECTED"){ askText("반려 사유를 적어 주세요", "학생 화면에 표시됩니다").then(function(n){ if (n != null) setDocStatus(p[0], p[1], p[2], n).then(function(){ renderMain(); toast("반려했습니다."); }).catch(function(e){ renderMain(); showErr("저장하지 못했습니다", (e && e.message) || String(e)); }); }); return; }
     setDocStatus(p[0], p[1], p[2], note).then(function(){
       renderMain(); toast(p[2] === "VERIFIED" ? "수신 확인했습니다." : p[2] === "REJECTED" ? "반려했습니다. 학생이 다시 올려야 합니다." : "수신 확인을 취소했습니다.");
     }).catch(function(e){ renderMain(); toast("저장하지 못했습니다: " + ((e && e.message) || e)); });
@@ -6418,12 +6444,13 @@ RENDER.STAFF.instView = function(){
       tbl(["학생","제출 서류 · 승인"], strows) : '<p class="tiny">이 기관에 배정된 학생이 없습니다.</p>'))));
   main.querySelectorAll("[data-zip]").forEach(function(b){ b.addEventListener("click", function(){ instFolder(this.getAttribute("data-zip"), this, this.hasAttribute("data-zipv")); }); });
   var sdr = $("ivSdReload"); if (sdr) sdr.addEventListener("click", function(){ sdr.disabled = true; (RS.me && RS.me.role === "STAFF" ? staffDocsLoad() : Promise.resolve()).then(function(){ renderMain(); toast("최신 서류 현황을 불러왔습니다."); }).catch(function(e){ sdr.disabled = false; toast("불러오지 못했습니다: " + e.message); }); });
-  main.querySelectorAll("[data-vd]").forEach(function(b){ b.addEventListener("click", function(){
-    var p = this.getAttribute("data-vd").split("|"), note = "";
-    if (p[2] === "REJECTED"){ note = window.prompt("반려 사유를 적어 주세요. (학생 화면에 표시됩니다)", ""); if (note == null) return; note = note.trim(); }
+  main.querySelectorAll("[data-vd]").forEach(function(b){ b.addEventListener("click", async function(){
+    var btn = this, p = this.getAttribute("data-vd").split("|"), note = "";
+    if (p[2] === "REJECTED"){ note = await askText("반려 사유를 적어 주세요", "학생 화면에 표시됩니다 (예: 서명 누락)"); if (note == null) return; }
+    btn.disabled = true; btn.textContent = "저장 중…";
     setDocStatus(p[0], p[1], p[2], note).then(function(){
       renderMain(); toast(p[2] === "VERIFIED" ? "승인했습니다." : p[2] === "REJECTED" ? "반려했습니다. 학생이 다시 올려야 합니다." : "승인을 취소했습니다.");
-    }).catch(function(e){ renderMain(); toast("저장하지 못했습니다: " + ((e && e.message) || e)); });
+    }).catch(function(e){ renderMain(); showErr("저장하지 못했습니다", (e && e.message) || String(e)); });
   }); });
   // 양식 파일 올리기 · 열기 · 삭제
   main.querySelectorAll("[data-tplv]").forEach(function(b){ b.addEventListener("click", function(){ formOpen(docTpl(it.id, this.getAttribute("data-tplv")), true).catch(function(e){ toast("열지 못했습니다: " + pfErr(e)); }); }); });
@@ -6501,9 +6528,9 @@ RENDER.STAFF.instView = function(){
     saved("‘" + nm + "’ 서류를 " + it.name + "에 추가했습니다.");
   }); });
   main.querySelectorAll("[data-ivadd]").forEach(function(b){ var k = b.getAttribute("data-ivadd"), n = $("ivAddN_" + k); if (n) n.addEventListener("keydown", function(e){ if (e.key === "Enter") b.click(); }); });
-  main.querySelectorAll("[data-ids]").forEach(function(b){ b.addEventListener("click", function(){
+  main.querySelectorAll("[data-ids]").forEach(function(b){ b.addEventListener("click", async function(){
     var p = this.getAttribute("data-ids").split("|"), st = instDocSt(it.id, p[0]), note = "";
-    if (p[1] === "REJECTED"){ note = window.prompt("기관에 요청할 보완 내용을 적어 주세요.", ""); if (note == null) return; }
+    if (p[1] === "REJECTED"){ note = await askText("기관에 요청할 보완 내용을 적어 주세요", "예: 기관 날인 누락"); if (note == null) return; }
     st.st = p[1]; st.at = new Date().toISOString(); st.by = SESSION.name; st.note = note.trim();
     renderMain(); toast({ SENT:"발송 완료로 표시했습니다.", RECEIVED:"수신 완료로 표시했습니다.", REJECTED:"보완 요청으로 표시했습니다.", TODO:"발송을 취소했습니다.", WAIT:"수신을 취소했습니다." }[p[1]]);
   }); });
